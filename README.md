@@ -1,68 +1,227 @@
-# calhacks-eigen-coach-backend
+# Eigen Coach Backend
 
-AI powered tutor for exam prep, backstory is that in Brazilian public schools, students don't have the resources to hire private tutors and the exams are too obscure to be featured on websites like KhanAcademy. Our app essentially provides this platform, all users have to do is upload papers and our agents will create a time-aware study guide, with a question bank, flexible question generating, and memory to store progress by topic
+AI-powered tutor for exam prep. Built for Brazilian public schools where students lack resources for private tutors and standardized test preparation materials.
 
-## Time-awareness --> study timeline
-Question Bank Agent determines tags/question topics, use math/algorithms + sensible study defaults (hours per day, etc) to come up with a plan, no llm needed here
+## 🎯 Core Features
 
-## Question Bank --> tags and topics
-Question Bank Agent processes exam, determines exam, determines topics per exam
+- **Time-Aware Study Planning**: Generates personalized study schedules based on exam dates and student availability
+- **Question Bank**: MySQL-backed question database with topic tagging and difficulty scoring
+- **Student Memory**: Tracks learning progress, skill levels, and personalized notes per student
+- **Adaptive Tutoring**: Socratic method chatbot that guides students without giving away answers
+- **Performance Tracking**: Evaluates conversations and updates skill levels automatically
 
-### Question Bank (MySQL) and Memory (TinyDB via MCP)
+## 🏗️ Architecture
 
-#### Pre-processing before inserting into DB
-Need LLM or simple rules to process exams, extracting exam type, and labeling each question by topic (tagging them). Tagged questions are stored in MySQL.
+### **Clean 4-Agent System** (No Orchestrator)
 
-## Flexible --> no pre-designing, generate on the go
+1. **Initializer** (`agents/initializer.py`)
+   - Sets up student sessions and calendar entries
+   - Creates default study plans
 
-## Memory --> progress tracking by topic
+2. **Questioner** (`agents/questioner.py`)
+   - Selects appropriate questions based on date, topics, and skill levels
+   - Uses unified database MCP for question retrieval
 
+3. **Chatter** (`agents/chatter.py`)
+   - Streaming Socratic tutoring conversations
+   - Automatically saves student learning notes via MCP
+   - Never gives direct answers - guides discovery
 
+4. **Finalizer** (`agents/finalizer.py`)
+   - Analyzes conversation history
+   - Evaluates student performance (0-100 scale)
+   - Updates skill levels in database
 
+### **Unified Database Layer**
 
-## Agentic Architecture
+All data now stored in **MySQL** with a single unified MCP server:
 
-- **Orchestrator** (`agents/orchestrator.py`)
-  - Central entry that routes tasks based on session stage: init → planned → asked → chatted.
-  - Delegates to underlying agents and persists updates where needed.
+**`database/`** folder contains:
+- `db.py` - MySQL connection pool manager
+- `db_helpers.py` - CRUD operations (students, memory, calendar, skills)
+- `db_mcp.py` - Unified MCP server with 6 tools:
+  - **Question Bank**: `get_question_by_topic()`, `get_unique_topics()`
+  - **Student Data**: `get_skill_level_pairs()`, `get_topics_by_date()`, `add_memory_entry()`, `update_skill_level()`
+- `init.py` - Database initialization
 
-- **Agents**
-  - **Questioner** (`agents/questioner.py`): selects questions by date/topics using MCP tools.
-  - **Tutor Chat** (`agents/chatter.py`): streaming Socratic tutoring; can save long-term notes via Memory MCP.
-  - **Finalizer** (`agents/finalizer.py`): evaluates the session and returns topic score deltas; persists to TinyDB.
+**Database Tables:**
+- `questions` - Question bank with topic tags and difficulty
+- `students` - Student metadata (name, exam)
+- `student_memory` - Learning notes and observations
+- `calendar_entries` - Study session plans
+- `skill_levels` - Topic proficiency scores (0-100)
 
-- **MCP Tools**
-  - **Question Bank MCP** (`question_bank/qb_mcp.py`): fetch questions by topic, list topics.
-  - **Memory MCP** (`memory/memory_mcp.py`): calendar (date → topics, n_questions), skill levels, memory, generic writes.
+## 📡 API Endpoints
 
-- **Storage**
-  - **MySQL**: primary question bank (`question_bank/qb.py`).
-  - **TinyDB**: calendar, skill levels, and long-term memory (`memory/memory.py`).
+All endpoints available at `http://localhost:8000`
 
-## Local Development
+### `GET /health`
+Health check
 
-1) Install
+### `POST /initializer`
+Initialize a student session
+```json
+{
+  "student_data": {
+    "student_name": "Maria",
+    "exam_name": "ENEM 2025",
+    "memory": []
+  },
+  "date": "2025-01-15"
+}
+```
 
+### `POST /questioner`
+Get a question for the student
+```json
+{
+  "student_data": { ... },
+  "date": "2025-01-15"
+}
+```
+
+### `POST /chatter`
+Send message to tutoring chatbot
+```json
+{
+  "student_data": { ... },
+  "user_message": "I think the answer is...",
+  "conversation_history": []
+}
+```
+
+### `POST /finalizer`
+Evaluate session and update skill levels
+```json
+{
+  "student_data": { ... },
+  "conversation_history": [
+    {"role": "user", "content": "..."},
+    {"role": "assistant", "content": "..."}
+  ]
+}
+```
+
+## 🚀 Quick Start
+
+### 1. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-2) MySQL (expects localhost:8003, user `root`, password in `question_bank/qb.py`)
-
+### 2. Start MySQL
 ```bash
-# Run MySQL (example via Docker)
-docker run -d --name calhacks-mysql -e MYSQL_ROOT_PASSWORD=joe_is_very_cool -p 8003:3306 mysql:8
-
-# Initialize DB and table
-python -m question_bank.qb
+# Using Docker
+docker run -d --name calhacks-mysql \
+  -e MYSQL_ROOT_PASSWORD=joe_is_very_cool \
+  -p 8003:3306 \
+  mysql:8
 ```
 
-3) Run API (uvicorn)
-
+### 3. Run the Server
 ```bash
+# Database initializes automatically on startup
 python -m uvicorn main:app --reload
 ```
 
-## Notes
+Server will display:
+```
+============================================================
+Eigen Coach Backend Starting
+============================================================
 
-- ChromaDB is not used. We use MySQL for the question bank and TinyDB (via MCP) for memory/calendar/skills.
+[Startup] Initializing database connection pool...
+[Startup] ✓ Database initialized and ready
+[Startup] ✓ API endpoints available
+
+============================================================
+Server Ready!
+============================================================
+```
+
+## 🗂️ Project Structure
+
+```
+backend/
+├── agents/                     # 4 clean agents
+│   ├── chatter.py             # Tutoring chat
+│   ├── finalizer.py           # Performance evaluation
+│   ├── initializer.py         # Session setup
+│   └── questioner.py          # Question selection
+├── database/                   # Unified database layer
+│   ├── db.py                  # MySQL connection pool
+│   ├── db_helpers.py          # CRUD operations
+│   ├── db_mcp.py              # Unified MCP server
+│   └── init.py                # Initialization
+├── migrations/
+│   └── 001_create_memory_tables.sql
+├── api.py                      # FastAPI endpoints
+├── main.py                     # Entry point
+└── requirements.txt
+```
+
+## 🔧 Configuration
+
+### MySQL Connection
+Edit `database/db.py`:
+```python
+host='localhost'
+port=8003
+user='root'
+password='joe_is_very_cool'
+database='calhacks'
+```
+
+### MCP Server
+Configuration in `.mcp.json`:
+```json
+{
+  "mcpServers": {
+    "database": {
+      "command": "python3",
+      "args": ["-m", "database.db_mcp"]
+    }
+  }
+}
+```
+
+## 📊 Database Schema
+
+### Students
+- `id`, `student_name`, `exam_name`, `created_at`, `updated_at`
+
+### Questions
+- `id`, `question_prompt`, `answer`, `explanation`
+- `topic_tag1`, `topic_tag2`, `topic_tag3`
+- `difficulty`, `has_been_asked`
+
+### Student Memory
+- `id`, `student_id`, `memory_entry`, `created_at`
+
+### Calendar Entries
+- `id`, `student_id`, `date`, `topics` (JSON), `n_questions`
+
+### Skill Levels
+- `id`, `student_id`, `topic`, `skill_level` (0-100)
+
+## 🎓 Student Skill Scoring
+
+- **0-25**: Novice - Minimal understanding
+- **26-50**: Beginner - Basic understanding
+- **51-75**: Intermediate - Solid understanding  
+- **76-100**: Advanced - Strong mastery
+
+## 📝 Development Notes
+
+- ✅ MySQL for all data (questions + student data)
+- ✅ Single unified MCP server for all database operations
+- ✅ Connection pooling for performance
+- ✅ Automatic migrations on startup
+- ✅ Clean agent architecture (no orchestrator)
+- ✅ Type-safe with Pydantic models
+- ✅ Async/await throughout
+
+## 🤝 Contributing
+
+Built for CalHacks hackathon. Focus on helping Brazilian public school students access quality exam preparation tools.
+
