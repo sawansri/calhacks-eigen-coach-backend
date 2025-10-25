@@ -1,39 +1,63 @@
-import asyncio
-from claude_agent_sdk import query, ClaudeAgentOptions
-import os
+"""Questioner agent for selecting appropriate questions for students."""
 
-async def question_agent(current_date):
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+from claude_agent_sdk import (
+    AssistantMessage,
+    ClaudeAgentOptions,
+    ClaudeSDKClient,
+    TextBlock,
+)
+
+
+async def question_agent(current_date: str) -> str:
+    """
+    Select an appropriate question from the question bank.
+    
+    Args:
+        current_date: Date for selecting questions in YYYY-MM-DD format
+        
+    Returns:
+        Selected question text
+    """
     options = ClaudeAgentOptions(
-        model="claude-4.5-haiku-latest",
         system_prompt="""You are a question selection agent for an intelligent tutoring system.
-Your job is to:
-1. Check the calendar and use get_topics_by_date to get list of topics and number of questions for the current date
-2. Query the question bank MCP server to get available questions by topic
-3. Select questions based on the selected topics and number of questions
-4. If many questions have been asked before, prioritize those that have not been asked yet.
-5. You can also generate appropriate questions if all questions have been asked before. 
-Make sure to use the same format as existing questions. Just swap values.
-6. Return the selected question in a list of format "Selected Question: {question_prompt} | 
-Answer: {answer} | Explanation: {explanation} | Difficulty: {difficulty} | Topic Tags: {topic_tags}"
 
-Use the available MCP tools to access question bank data and user memory.""",
+Your job is to:
+1. Use get_topics_by_date to check what topics are scheduled for today
+2. Use get_question_by_topic to retrieve questions for those topics
+3. Select the best question based on student skill levels
+4. Return ONLY the question text, nothing else
+
+Available MCP tools:
+- get_topics_by_date(student_name, exam_name, date): Get scheduled topics
+- get_question_by_topic(topic): Get questions for a topic
+- get_skill_level_pairs(student_name, exam_name): Get current skill levels""",
         permission_mode='acceptEdits',
-        cwd=project_root,
         mcp_servers={
-            "question_bank": {
-                "command": "python",
-                "args": ["question_bank/qb_mcp.py"]
-            },
-            "memory": {
-                "command": "python",
-                "args": ["memory/memory_mcp.py"]
+            "database": {
+                "command": "-m",
+                "args": ["database.db_mcp"]
             }
         }
     )
 
-    async for message in query(
-        prompt="Select an appropriate question from the question bank for the current user session. The current date is " + current_date,
-        options=options
-    ):
-        return message.content
+    response_text = ""
+    try:
+        async with ClaudeSDKClient(options=options) as client:
+            await client.query(
+                prompt=(
+                    "Select an appropriate question for the current user session. "
+                    f"The current date is {current_date}."
+                )
+            )
+
+            async for message in client.receive_response():
+                if isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            response_text += block.text
+
+    except Exception as e:
+        print(f"Error in question_agent: {e}")
+        response_text = "Error selecting question. Please try again."
+    
+    return response_text.strip() if response_text else "No question available."

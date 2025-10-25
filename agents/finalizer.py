@@ -1,119 +1,119 @@
-# This agent collects conversation history and gives a score reflecting a student's performance.
-# one shot agent to analyze session and provide performance feedback
-# it outputs scores, which we use to update skill levels in memory. Like say current skill evel is 10, with an estimation of 50,
-# we update skill level to say 20, based on some criteria.
+# Performance evaluation agent for analyzing student conversations
+# Outputs scores to update skill levels in the memory database
 
-import asyncio
-import sys
-# sys.path.insert(0, '/Users/joe/repostories/calhacks/backend')
+import json
+from claude_agent_sdk import (
+    AssistantMessage,
+    ClaudeAgentOptions,
+    ClaudeSDKClient,
+    TextBlock,
+)
+from database.db_helpers import get_or_create_student, get_skill_levels, set_skill_level
 
-from claude_agent_sdk import query, ClaudeAgentOptions
-from memory.memory_mcp import get_skill_level_pairs_helper
-from question_bank.qb_mcp import get_unique_topics_helper
+
+def get_unique_topics_helper():
+    """Helper to get unique topics from question bank."""
+    from database.db import DatabaseManager
+    
+    try:
+        conn = DatabaseManager.get_connection()
+        cursor = conn.cursor()
+        
+        query_sql = """
+            SELECT DISTINCT topic_tag1 FROM questions 
+            UNION 
+            SELECT DISTINCT topic_tag2 FROM questions
+            UNION
+            SELECT DISTINCT topic_tag3 FROM questions
+            WHERE topic_tag3 IS NOT NULL
+        """
+        cursor.execute(query_sql)
+        results = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return [(row[0], 0) for row in results if row[0]]
+    except Exception:
+        return []
+
 
 async def finalizer_agent(student_data: dict, conversation_history: list):
-    """Analyze student performance and provide skill level score deltas.
+    """Analyze student performance and provide skill level scores.
     
     Args:
         student_data: Dictionary with student info (exam_name, student_name, memory)
         conversation_history: List of conversation exchanges
     
     Returns:
-        Score deltas in format {topic: delta} for each topic covered
+        Score deltas in format {topic: score} for each topic covered
     """
-    # Get current skill levels
-    skill_levels = get_skill_level_pairs_helper()
-    if isinstance(skill_levels, str):
-        skill_levels = []
+    student_name = student_data.get("student_name", "default")
+    exam_name = student_data.get("exam_name", "default")
     
-    # Convert to dict for easier lookup
-    current_skills = {topic: level for topic, level in skill_levels}
+    # Get current skill levels and available topics
+    student_id = get_or_create_student(student_name, exam_name)
+    skill_levels = get_skill_levels(student_id)
+    current_skills = {t: l for t, l in skill_levels}
     
-    # Get unique topics
     topics = get_unique_topics_helper()
-    if isinstance(topics, str):
-        topics = []
+    topics_list = ", ".join([t[0] if isinstance(t, tuple) else t for t in topics if not isinstance(topics, str)]) if topics and not isinstance(topics, str) else "general"
     
-    # Format topics list
-    topics_list = ", ".join([t if isinstance(t, str) else t[0] for t in topics])
+    # Build context strings
+    conversation_text = "\n".join([f"{m.get('role', 'unknown')}: {m.get('content', '')}" for m in conversation_history])
+    skills_context = "\n".join([f"- {t}: {l}" for t, l in current_skills.items()]) or "- No prior skills"
+    memory_context = "\n".join(f"- {item}" for item in student_data.get("memory", [])) or "- No prior context"
     
-    options = ClaudeAgentOptions(
-        system_prompt="""You are a performance evaluation agent for an intelligent tutoring system.
-
-SKILL LEVEL SCORING SCALE (0-100):
-- 0-25: Novice - Minimal understanding, needs significant guidance
-- 26-50: Beginner - Basic understanding, makes mistakes frequently
-- 51-75: Intermediate - Solid understanding, occasional mistakes
-- 76-100: Advanced - Strong mastery, consistent accuracy
-
-Your job is to:
-1. Analyze the conversation history between tutor and student
-2. Evaluate the student's understanding and performance on each topic covered
-3. For each topic mentioned in the conversation:
-   - Compare their demonstrated understanding to the scoring scale
-   - Calculate the score delta (change from their current level)
-   - Positive delta = improvement, negative delta = decline (if applicable)
-   - Use increments of 5 (e.g., +10, -5, +15)
-4. Return ONLY a JSON object with score deltas for topics where there was measurable change
-
-Return your analysis in EXACTLY this format:
-{
-  "topic_name": current_score_estimation,
-  "topic_name_2": current_score_estimation
-}
-
-Example: {"calculus": 12, "geometry": 99, "algebra": 0}
-
-Do not include explanations or any other text - ONLY the JSON object.""",
-        permission_mode='acceptEdits',
-        # cwd="/Users/joe/repostories/calhacks/backend",
-        mcp_servers={
-            "memory": {
-                "command": "python",
-                "args": ["memory/memory_mcp.py"]
-            },
-            "question_bank": {
-                "command": "python",
-                "args": ["question_bank/qb_mcp.py"]
-            }
-        }
-    )
-
-    # Format conversation and student context for the prompt
-    conversation_text = "\n".join([f"{msg.get('role', 'unknown')}: {msg.get('content', '')}" for msg in conversation_history])
-    student_name = student_data.get("student_name", "Student")
-    exam_name = student_data.get("exam_name", "Exam")
-    memory_context = "\n".join(f"- {item}" for item in student_data.get("memory", []))
-    
-    # Build current skill levels context
-    skills_context = "\n".join([f"- {topic}: {level}" for topic, level in current_skills.items()])
-
-    prompt = f"""Analyze this tutoring session and provide score deltas:
+    prompt = f"""Analyze this tutoring session and score the student's performance:
 
 Student: {student_name}
 Exam: {exam_name}
 
 Available Topics: {topics_list}
+Current Skills: {skills_context}
+Student Background: {memory_context}
 
-Current Skill Levels:
-{skills_context if skills_context else "- No prior skills recorded"}
-
-Student Background:
-{memory_context if memory_context else "- No prior context available"}
-
-Conversation History:
+Session Conversation:
 {conversation_text}
 
-Evaluate the student's performance on each topic covered and provide score deltas."""
+Return ONLY valid JSON with topic names as keys and scores (0-100) as values. Example: {{"algebra": 45, "geometry": 75}}"""
 
-    async for message in query(
-        prompt=prompt,
-        options=options
-    ):
-        # Parse and return the JSON response
-        import json
-        try:
-            result = json.loads(message.content)
-            return result
-        except json.JSONDecodeError:
-            return message.content
+    options = ClaudeAgentOptions(
+        system_prompt="""You are a performance evaluator. Analyze conversation and estimate student scores (0-100 scale: 0-25=novice, 26-50=beginner, 51-75=intermediate, 76-100=advanced). Return ONLY valid JSON with format: {"topic": score, ...}. No other text.""",
+        permission_mode='acceptEdits',
+        mcp_servers={
+            "database": {"command": "-m", "args": ["database.db_mcp"]}
+        }
+    )
+
+    result_text = ""
+    try:
+        async with ClaudeSDKClient(options=options) as client:
+            await client.query(prompt=prompt)
+
+            async for message in client.receive_response():
+                if isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            result_text += block.text
+    except Exception as e:
+        print(f"Error in finalizer query: {e}")
+        return {"general": 50}
+
+    cleaned_text = result_text.strip()
+    if not cleaned_text:
+        return {"general": 50}
+
+    try:
+        result = json.loads(cleaned_text)
+    except json.JSONDecodeError:
+        print("Finalizer returned invalid JSON, falling back to default score")
+        return {"general": 50}
+
+    if not isinstance(result, dict):
+        print("Finalizer returned unexpected data type, falling back to default score")
+        return {"general": 50}
+
+    for topic, score in result.items():
+        set_skill_level(student_id, topic, score)
+    return result
