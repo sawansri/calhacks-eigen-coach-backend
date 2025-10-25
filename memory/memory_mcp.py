@@ -57,6 +57,35 @@ async def get_all_memory_data() -> str:
         return f"Error retrieving memory data: {e}"
 
 @mcp.tool()
+async def get_topics_by_date(date: str) -> str:
+    """Get list of topics and number of questions scheduled for a specific date.
+    
+    Args:
+        date: Date string in format YYYY-MM-DD
+    
+    Returns:
+        Topics and question count for that date, or a message if no schedule found
+    """
+    try:
+        db = get_db("calendar")
+        records = db.all()
+        
+        # Search for the record with matching date
+        for record in records:
+            if record.get("date") == date:
+                topics = record.get("topics", [])
+                n_questions = record.get("n_questions", 0)
+                if not topics:
+                    return f"No topics scheduled for {date}."
+                topics_str = ", ".join(topics)
+                return f"Topics for {date}: {topics_str} | Number of questions: {n_questions}"
+        
+        return f"No schedule found for {date}."
+    
+    except Exception as e:
+        return f"Error retrieving topics for date {date}: {e}"
+
+@mcp.tool()
 async def write_to_database(db_name: str, data: str) -> str:
     """Write data to any one of these databases.
     
@@ -75,4 +104,8 @@ async def write_to_database(db_name: str, data: str) -> str:
         return "Error: Invalid JSON format"
     except Exception as e:
         return f"Error writing to database: {e}"
+
+
+if __name__ == "__main__":
+    mcp.run()
 

@@ -98,3 +98,7 @@ async def get_unique_topics() -> str:
             cursor.close()
             connection.close()
 
+
+if __name__ == "__main__":
+    mcp.run()
+
