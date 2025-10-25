@@ -1,5 +1,4 @@
 claude-agent-sdk
-chromadb
 fastapi
 uvicorn
 pydantic

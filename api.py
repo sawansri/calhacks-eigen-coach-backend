@@ -4,9 +4,18 @@ FastAPI endpoints for the Eigen Coach tutoring system.
 
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from pydantic import BaseModel
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import json
 import os
+from datetime import datetime
+
+# Agent imports
+from agents.questioner import question_agent
+from agents.chatter import TutorChat
+from agents.finalizer import finalizer_agent
+
+# TinyDB helpers for calendar/skills persistence
+from memory.memory import get_db
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -22,6 +31,40 @@ app = FastAPI(
 class UserData(BaseModel):
     """Request model for storing user data."""
     value: str
+
+
+# ----------------------------------------------------------------------------
+# Minimal models for new endpoints
+# ----------------------------------------------------------------------------
+
+class CalendarEntry(BaseModel):
+    date: str
+    topics: List[str]
+    n_questions: int = 1
+
+class CalendarSeedRequest(BaseModel):
+    entries: List[CalendarEntry]
+
+class QuestionSelectResponse(BaseModel):
+    question: str
+    answer: Optional[str] = None
+    explanation: Optional[str] = None
+    difficulty: Optional[str] = None
+    topic_tags: Optional[List[str]] = None
+
+class ChatRequest(BaseModel):
+    student_data: Dict
+    message: str
+
+class ChatResponse(BaseModel):
+    response: str
+
+class FinalizeRequest(BaseModel):
+    student_data: Dict
+    conversation_history: List[Dict]
+
+class FinalizeResponse(BaseModel):
+    deltas: Dict[str, int] | Dict
 
 
 # In-memory variables
@@ -197,6 +240,113 @@ def set_question7(data: UserData):
         "message": f"Question7 set to: {question7}",
         "question7": question7
     }
+
+
+# ============================================================================
+# Minimal working endpoints to call agents directly
+# ============================================================================
+
+@app.post("/calendar/seed")
+def seed_calendar(req: CalendarSeedRequest):
+    """Seed TinyDB calendar with provided entries."""
+    try:
+        db = get_db("calendar")
+        for e in req.entries:
+            db.insert({
+                "date": e.date,
+                "topics": e.topics,
+                "n_questions": e.n_questions,
+            })
+        return {"status": "ok", "inserted": len(req.entries)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/topics")
+def get_topics(date: str):
+    """Get topics and n_questions for a specific date from TinyDB calendar."""
+    try:
+        db = get_db("calendar")
+        records = db.all()
+        for r in records:
+            if r.get("date") == date:
+                return {
+                    "date": date,
+                    "topics": r.get("topics", []),
+                    "n_questions": r.get("n_questions", 0)
+                }
+        raise HTTPException(status_code=404, detail=f"No schedule found for {date}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/question/select", response_model=QuestionSelectResponse)
+async def select_question(date: Optional[str] = None):
+    """Use the questioner agent to select a question for the given date (defaults to today)."""
+    try:
+        current_date = date or datetime.now().strftime('%Y-%m-%d')
+        raw = await question_agent(current_date)
+        if not raw:
+            raise HTTPException(status_code=500, detail="Question agent returned no content")
+
+        # Parse the pipe-delimited format if present
+        # Format: "Selected Question: {q} | Answer: {a} | Explanation: {e} | Difficulty: {d} | Topic Tags: {tags}"
+        parsed = {"question": raw}
+        if "Selected Question:" in raw and "|" in raw:
+            parts = [p.strip() for p in raw.split("|")]
+            for p in parts:
+                if ":" in p:
+                    key, val = p.split(":", 1)
+                    key = key.strip().lower()
+                    val = val.strip()
+                    if key.startswith("selected question"):
+                        parsed["question"] = val
+                    elif key == "answer":
+                        parsed["answer"] = val
+                    elif key == "explanation":
+                        parsed["explanation"] = val
+                    elif key == "difficulty":
+                        parsed["difficulty"] = val
+                    elif key.startswith("topic tags"):
+                        parsed["topic_tags"] = [t.strip() for t in val.split(",") if t.strip()]
+        return QuestionSelectResponse(**parsed)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(req: ChatRequest):
+    """Send a message to the TutorChat agent and return the model response."""
+    try:
+        tutor = TutorChat(req.student_data)
+        text = await tutor.chat(req.message)
+        await tutor.close()
+        return ChatResponse(response=text or "")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/session/finalize", response_model=FinalizeResponse)
+async def finalize(req: FinalizeRequest):
+    """Run finalizer agent and persist/update skill levels into TinyDB."""
+    try:
+        deltas = await finalizer_agent(req.student_data, req.conversation_history)
+        # Persist to TinyDB skill_level
+        try:
+            db = get_db("skill_level")
+            if isinstance(deltas, dict):
+                for topic, score in deltas.items():
+                    db.insert({"topic": topic, "skill_level": score})
+        except Exception as persist_err:
+            # Non-fatal persistence error; return deltas anyway
+            print(f"Skill level persistence error: {persist_err}")
+        return FinalizeResponse(deltas=deltas if isinstance(deltas, dict) else {"raw": deltas})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

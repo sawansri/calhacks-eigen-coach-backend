@@ -1,22 +1,16 @@
-import sys
 from question_bank.qb import initialize_database
+from api import app as api_app
 
-def main():
-    """Main entry point to launch all backend instances"""
-    print("Starting Calhacks Backend Services...")
-    
-    # Initialize database
-    print("\n[1/3] Initializing Database...")
-    initialize_database()
-    
-    # TODO: Add other service instances here
-    print("\n[2/3] Starting API Server...")
-    # api_instance = start_api_server()
-    
-    print("\n[3/3] Starting Additional Services...")
-    # other_instance = start_other_services()
-    
-    print("\nAll services started successfully!")
+# Expose FastAPI app for: python -m uvicorn main:app --reload
+app = api_app
 
-if __name__ == "__main__":
-    main()
+@app.on_event("startup")
+async def on_startup():
+    """Initialize external services (e.g., MySQL) when the server starts."""
+    try:
+        print("\n[startup] Initializing Database...")
+        initialize_database()
+        print("[startup] Database initialization complete.")
+    except Exception as e:
+        # Non-fatal: API can still serve endpoints that don't hit MySQL
+        print(f"[startup] Database initialization error: {e}")
