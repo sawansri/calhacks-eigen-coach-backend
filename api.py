@@ -14,6 +14,7 @@ from agents.questioner import question_agent
 from agents.chatter import TutorChat
 from agents.finalizer import finalizer_agent
 from agents.orchestrator import Orchestrator
+from agents.orchestrator_llm import orchestrate_llm
 
 # TinyDB helpers for calendar/skills persistence
 from memory.memory import get_db
@@ -359,6 +360,31 @@ async def finalize(req: FinalizeRequest):
             # Non-fatal persistence error; return deltas anyway
             print(f"Skill level persistence error: {persist_err}")
         return FinalizeResponse(deltas=deltas if isinstance(deltas, dict) else {"raw": deltas})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/orchestrate", response_model=OrchestrateResponse)
+async def orchestrate(req: OrchestrateRequest):
+    """Default LLM-driven orchestrator. Returns a compact JSON plan and optional side effects."""
+    try:
+        result = await orchestrate_llm(req.payload)
+        if not isinstance(result, dict):
+            result = {"raw": str(result)}
+        return OrchestrateResponse(result=result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/orchestrate/deterministic", response_model=OrchestrateResponse)
+async def orchestrate_deterministic(req: OrchestrateRequest):
+    """Deterministic orchestrator that routes to concrete agents and can auto-execute."""
+    try:
+        orch = Orchestrator()
+        result = await orch.handle(req.payload)
+        if not isinstance(result, dict):
+            result = {"raw": str(result)}
+        return OrchestrateResponse(result=result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
