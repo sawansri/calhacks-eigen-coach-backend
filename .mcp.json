@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "database": {
+      "command": "python3",
+      "args": ["-m", "database.db_mcp"],
+      "env": {
+        "PYTHONPATH": "/Users/joe/repostories/calhacks/backend"
+      }
+    }
+  }
+}
