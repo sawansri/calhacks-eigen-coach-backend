@@ -8,6 +8,7 @@ from typing import Dict, Optional, List, Any
 import json
 import os
 from datetime import datetime
+import logging
 
 # Agent imports
 from agents.questioner import question_agent
@@ -25,6 +26,9 @@ app = FastAPI(
     description="API for the Eigen Coach AI tutoring system",
     version="1.0.0"
 )
+
+# Logger
+log = logging.getLogger("api")
 
 # ============================================================================
 # In-Memory Storage for User Data
@@ -274,7 +278,8 @@ def seed_calendar(req: CalendarSeedRequest):
             })
         return {"status": "ok", "inserted": len(req.entries)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(e, stack_info=True)
+        raise HTTPException(status_code=500)
 
 
 @app.get("/topics")
@@ -294,7 +299,8 @@ def get_topics(date: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(e, stack_info=True)
+        raise HTTPException(status_code=500)
 
 
 @app.get("/question/select", response_model=QuestionSelectResponse)
@@ -330,7 +336,8 @@ async def select_question(date: Optional[str] = None):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(e, stack_info=True)
+        raise HTTPException(status_code=500)
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -342,7 +349,8 @@ async def chat(req: ChatRequest):
         await tutor.close()
         return ChatResponse(response=text or "")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(e, stack_info=True)
+        raise HTTPException(status_code=500)
 
 
 @app.post("/session/finalize", response_model=FinalizeResponse)
@@ -361,7 +369,8 @@ async def finalize(req: FinalizeRequest):
             print(f"Skill level persistence error: {persist_err}")
         return FinalizeResponse(deltas=deltas if isinstance(deltas, dict) else {"raw": deltas})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(e, stack_info=True)
+        raise HTTPException(status_code=500)
 
 
 @app.post("/orchestrate", response_model=OrchestrateResponse)
@@ -373,7 +382,8 @@ async def orchestrate(req: OrchestrateRequest):
             result = {"raw": str(result)}
         return OrchestrateResponse(result=result)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(e, stack_info=True)
+        raise HTTPException(status_code=500)
 
 
 @app.post("/orchestrate/deterministic", response_model=OrchestrateResponse)
@@ -386,7 +396,8 @@ async def orchestrate_deterministic(req: OrchestrateRequest):
             result = {"raw": str(result)}
         return OrchestrateResponse(result=result)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(e, stack_info=True)
+        raise HTTPException(status_code=500)
 
 
 @app.post("/session/next", response_model=SessionNextResponse)
@@ -476,7 +487,8 @@ def session_next(req: SessionNextRequest):
             "example_body": json.dumps(example)
         })
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(e, stack_info=True)
+        raise HTTPException(status_code=500)
 
 if __name__ == "__main__":
     import uvicorn

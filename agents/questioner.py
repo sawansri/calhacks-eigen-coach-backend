@@ -1,8 +1,11 @@
 import asyncio
 from claude_agent_sdk import query, ClaudeAgentOptions
+import os
 
 async def question_agent(current_date):
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     options = ClaudeAgentOptions(
+        model="claude-4.5-haiku-latest",
         system_prompt="""You are a question selection agent for an intelligent tutoring system.
 Your job is to:
 1. Check the calendar and use get_topics_by_date to get list of topics and number of questions for the current date
@@ -16,7 +19,7 @@ Answer: {answer} | Explanation: {explanation} | Difficulty: {difficulty} | Topic
 
 Use the available MCP tools to access question bank data and user memory.""",
         permission_mode='acceptEdits',
-        # cwd="/Users/joe/repostories/calhacks/backend",
+        cwd=project_root,
         mcp_servers={
             "question_bank": {
                 "command": "python",

@@ -1,7 +1,13 @@
-from typing import Any
-import httpx
-import mysql.connector
-from mysql.connector import Error
+from typing import Any, Optional
+try:
+    import mysql.connector  # type: ignore
+    from mysql.connector import Error  # type: ignore
+    MYSQL_AVAILABLE = True
+except Exception:
+    # mysql-connector not available; server should still start so other tools can work
+    mysql = None  # type: ignore
+    Error = Exception  # type: ignore
+    MYSQL_AVAILABLE = False
 from mcp.server.fastmcp import FastMCP
 
 # Initialize FastMCP server
@@ -10,8 +16,10 @@ mcp = FastMCP("question_bank")
 # Helpers
 def get_db_connection():
     """Create and return a MySQL database connection"""
+    if not MYSQL_AVAILABLE:
+        return None
     try:
-        connection = mysql.connector.connect(
+        connection = mysql.connector.connect(  # type: ignore
             host='localhost',
             port=8003,
             user='root',
@@ -19,7 +27,7 @@ def get_db_connection():
             database='calhacks'
         )
         return connection
-    except Error as e:
+    except Error as e:  # type: ignore
         print(f"Database connection error: {e}")
         return None
 
@@ -31,6 +39,8 @@ def get_unique_topics_helper() -> list | str:
     """
     connection = get_db_connection()
     if not connection:
+        if not MYSQL_AVAILABLE:
+            return "mysql-connector not installed; question_bank MCP unavailable."
         return "Unable to connect to database."
     
     try:

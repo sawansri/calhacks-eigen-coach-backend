@@ -60,6 +60,7 @@ Guidelines:
         if self.client is None:
             # Create client with memory MCP server access
             options = ClaudeAgentOptions(
+                model="claude-4.5-haiku-latest",
                 system_prompt=self.system_prompt,
                 permission_mode='acceptEdits',
                 # cwd="/Users/joe/repostories/calhacks/backend",
