@@ -8,7 +8,7 @@ from claude_agent_sdk import (
     ClaudeSDKClient,
     TextBlock,
 )
-from database.db_helpers import get_or_create_student, get_skill_levels, set_skill_level
+from database.db_helpers import get_skill_levels, set_skill_level
 
 
 def get_unique_topics_helper():
@@ -52,7 +52,6 @@ async def finalizer_agent(student_data: dict, conversation_history: list):
     exam_name = student_data.get("exam_name", "default")
     
     # Get current skill levels and available topics
-    get_or_create_student(student_name, exam_name)
     skill_levels = get_skill_levels()
     current_skills = {t: l for t, l in skill_levels}
     

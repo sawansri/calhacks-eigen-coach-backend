@@ -12,27 +12,29 @@ from claude_agent_sdk import (
     TextBlock,
 )
 
-from database.db_helpers import get_calendar_entry, get_or_create_student, get_questions_by_topic, get_skill_levels
+from database.db_helpers import get_calendar_entry, get_questions_by_topic, get_skill_levels
 
 
-async def question_agent(student_data: dict[str, Any], current_date: str) -> List[Dict[str, Any]]:
+async def question_agent(current_date: str) -> List[Dict[str, Any]]:
     """Select questions tailored to the student's scheduled topics and skill levels."""
-    student_name = student_data.get("student_name", "default")
-    exam_name = student_data.get("exam_name", "default")
-
-    get_or_create_student(student_name, exam_name)
+    print(f"Starting question selection for date: {current_date}")
 
     calendar_entry = get_calendar_entry(current_date)
+    print(f"Calendar entry for {current_date}: {calendar_entry}")
     topics: List[str] = calendar_entry.get("topics", []) if calendar_entry else []
     if not topics:
+        print(f"No topics found for date {current_date}")
         return []
 
+    print(f"Found topics: {topics}")
     skill_pairs = get_skill_levels()
     skill_levels = {topic: level for topic, level in skill_pairs}
+    print(f"Student skill levels: {skill_levels}")
 
     questions_by_topic: Dict[str, List[Dict[str, Any]]] = {}
     for topic in topics:
         topic_questions = get_questions_by_topic(topic)
+        print(f"Found {len(topic_questions)} questions for topic: {topic}")
         if topic_questions:
             questions_by_topic[topic] = [
                 {
@@ -50,8 +52,10 @@ async def question_agent(student_data: dict[str, Any], current_date: str) -> Lis
             ]
 
     if not questions_by_topic:
+        print("No questions available for any topic")
         return []
 
+    print(f"Querying Claude agent for question selection")
     payload = {
         "scheduled_topics": topics,
         "skill_levels": skill_levels,
@@ -72,6 +76,7 @@ async def question_agent(student_data: dict[str, Any], current_date: str) -> Lis
         "select at most one question per topic. Choose questions that best match the student's "
         "skill level (lower skill levels should receive easier questions)."
         "you should deprioritize questions that have been asked before, and prefer those that have not been asked yet."
+        "If a question does not have a solution or answer, come up with your own solution or answer, and fill your response."
         "you can create new questions if most existing ones have been asked before. Example is replacing values while keeping format the same."
         "\n\nRules:\n"
         "- Return a JSON array.\n"
@@ -83,6 +88,7 @@ async def question_agent(student_data: dict[str, Any], current_date: str) -> Lis
 
     response_text = ""
     try:
+        print("Making request to Claude agent")
         async with ClaudeSDKClient(options=options) as client:
             await client.query(prompt=prompt)
 
@@ -98,11 +104,14 @@ async def question_agent(student_data: dict[str, Any], current_date: str) -> Lis
 
     response_text = response_text.strip()
     if not response_text:
+        print("Claude agent returned empty response")
         return []
 
     try:
+        print("Parsing Claude agent response")
         selected_questions = json.loads(response_text)
         if isinstance(selected_questions, list):
+            print(f"Successfully selected {len(selected_questions)} questions")
             return selected_questions
     except json.JSONDecodeError:
         print("Question agent returned invalid JSON payload; falling back to deterministic selection")
@@ -115,5 +124,7 @@ async def question_agent(student_data: dict[str, Any], current_date: str) -> Lis
             fallback_question.setdefault("source_topic", topic)
             fallback_question["selection_reason"] = "Default selection due to invalid model response"
             fallback.append(fallback_question)
+            print(f"Using fallback question for topic: {topic}")
 
+    print(f"Returning {len(fallback)} fallback questions")
     return fallback
