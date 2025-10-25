@@ -28,6 +28,7 @@ def initialize_database():
             topic_tag1 VARCHAR(100),
             topic_tag2 VARCHAR(100),
             topic_tag3 VARCHAR(100),
+            has_been_asked BOOLEAN DEFAULT FALSE,
             difficulty VARCHAR(50),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )

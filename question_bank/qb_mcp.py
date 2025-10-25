@@ -51,6 +51,7 @@ async def get_question_by_topic(topic: str) -> str:
                 Explanation: {row['explanation']}
                 Difficulty: {row['difficulty']}
                 Topic Tags: {row['topic_tag1']}, {row['topic_tag2']}, {row['topic_tag3']}
+                Has Been Asked: {row['has_been_asked']}
                 ---"""
             formatted_results.append(formatted)
         
