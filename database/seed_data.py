@@ -38,6 +38,24 @@ def _table_is_empty(conn, table_name: str) -> bool:
         cursor.close()
 
 
+def _clear_all_data(conn) -> None:
+    """Clear all data from tables before seeding."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+        cursor.execute("TRUNCATE TABLE student_memory")
+        cursor.execute("TRUNCATE TABLE calendar_entries")
+        cursor.execute("TRUNCATE TABLE skill_levels")
+        cursor.execute("TRUNCATE TABLE questions")
+        cursor.execute("TRUNCATE TABLE students")
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+        print("[DatabaseSeeder] Cleared all data from tables")
+    except Error as exc:
+        print(f"[DatabaseSeeder] Error clearing data: {exc}")
+    finally:
+        cursor.close()
+
+
 def _get_or_create_student_id(
     conn,
     student_name: Optional[str] = None,
@@ -85,14 +103,6 @@ def _seed_student_memory(conn) -> None:
     if not memory_entries:
         return
 
-    try:
-        if not _table_is_empty(conn, "student_memory"):
-            print("[DatabaseSeeder] Skipping student memory seed; table already populated")
-            return
-    except Error as exc:
-        print(f"[DatabaseSeeder] Unable to inspect student_memory table: {exc}")
-        return
-
     insert_sql = "INSERT INTO student_memory (student_id, memory_entry) VALUES (%s, %s)"
 
     student_id = _get_or_create_student_id(conn)
@@ -118,14 +128,6 @@ def _seed_student_memory(conn) -> None:
 def _seed_calendar_entries(conn) -> None:
     entries = _load_json(CALENDAR_FILE)
     if not entries:
-        return
-
-    try:
-        if not _table_is_empty(conn, "calendar_entries"):
-            print("[DatabaseSeeder] Skipping calendar entries seed; table already populated")
-            return
-    except Error as exc:
-        print(f"[DatabaseSeeder] Unable to inspect calendar_entries table: {exc}")
         return
 
     insert_sql = (
@@ -163,14 +165,6 @@ def _seed_skill_levels(conn) -> None:
     if not skills:
         return
 
-    try:
-        if not _table_is_empty(conn, "skill_levels"):
-            print("[DatabaseSeeder] Skipping skill levels seed; table already populated")
-            return
-    except Error as exc:
-        print(f"[DatabaseSeeder] Unable to inspect skill_levels table: {exc}")
-        return
-
     insert_sql = "INSERT INTO skill_levels (student_id, topic, skill_level) VALUES (%s, %s, %s)"
 
     student_id = _get_or_create_student_id(conn)
@@ -195,14 +189,6 @@ def _seed_skill_levels(conn) -> None:
 def _seed_questions(conn) -> None:
     questions = _load_json(QUESTIONS_FILE)
     if not questions:
-        return
-
-    try:
-        if not _table_is_empty(conn, "questions"):
-            print("[DatabaseSeeder] Skipping questions seed; table already populated")
-            return
-    except Error as exc:
-        print(f"[DatabaseSeeder] Unable to inspect questions table: {exc}")
         return
 
     insert_sql = (
@@ -236,6 +222,7 @@ def _seed_questions(conn) -> None:
 def run_seeders(conn) -> None:
     """Run all available default data seeders."""
     try:
+        _clear_all_data(conn)
         _seed_students(conn)
         _seed_student_memory(conn)
         _seed_calendar_entries(conn)

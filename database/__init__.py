@@ -4,7 +4,6 @@ Eigen Coach unified database package.
 
 from database.db import DatabaseManager
 from database.db_helpers import (
-    get_or_create_student,
     get_student_memory,
     add_student_memory,
     get_calendar_entry,
@@ -15,7 +14,6 @@ from database.db_helpers import (
 
 __all__ = [
     'DatabaseManager',
-    'get_or_create_student',
     'get_student_memory',
     'add_student_memory',
     'get_calendar_entry',

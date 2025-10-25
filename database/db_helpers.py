@@ -13,66 +13,42 @@ DEFAULT_STUDENT_NAME = os.getenv("EIGEN_STUDENT_NAME", "Eigen Student")
 DEFAULT_EXAM_NAME = os.getenv("EIGEN_EXAM_NAME", "Eigen Exam")
 
 
-def get_or_create_student(student_name: Optional[str] = None, exam_name: Optional[str] = None) -> int:
-    """Return the single student ID, creating or updating it as needed."""
-    name = student_name or DEFAULT_STUDENT_NAME
-    exam = exam_name or DEFAULT_EXAM_NAME
-
+def get_student_name() -> str:
+    """Return the student name."""
     conn = DatabaseManager.get_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
 
     try:
-        cursor.execute("SELECT id, student_name, exam_name FROM students ORDER BY id LIMIT 1")
-        record = cursor.fetchone()
-
-        if record:
-            if record["student_name"] != name or record["exam_name"] != exam:
-                cursor.execute(
-                    "UPDATE students SET student_name = %s, exam_name = %s WHERE id = %s",
-                    (name, exam, record["id"]),
-                )
-            return record["id"]
-
-        cursor.execute(
-            "INSERT INTO students (student_name, exam_name) VALUES (%s, %s)",
-            (name, exam),
-        )
-        return cursor.lastrowid
-
+        cursor.execute("SELECT student_name FROM students LIMIT 1")
+        result = cursor.fetchone()
+        return result[0] if result else DEFAULT_STUDENT_NAME
     finally:
         cursor.close()
         conn.close()
 
 
-def get_student_profile() -> Dict[str, str]:
-    """Return the stored student profile."""
+def get_exam_name() -> str:
+    """Return the exam name."""
     conn = DatabaseManager.get_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
 
     try:
-        cursor.execute("SELECT student_name, exam_name FROM students ORDER BY id LIMIT 1")
-        record = cursor.fetchone()
-        if record:
-            return {
-                "student_name": record["student_name"],
-                "exam_name": record["exam_name"],
-            }
-        return {"student_name": DEFAULT_STUDENT_NAME, "exam_name": DEFAULT_EXAM_NAME}
+        cursor.execute("SELECT exam_name FROM students LIMIT 1")
+        result = cursor.fetchone()
+        return result[0] if result else DEFAULT_EXAM_NAME
     finally:
         cursor.close()
         conn.close()
 
 
 def get_student_memory() -> List[str]:
-    """Return memory entries for the single student."""
-    student_id = get_or_create_student()
+    """Return memory entries."""
     conn = DatabaseManager.get_connection()
     cursor = conn.cursor()
 
     try:
         cursor.execute(
-            "SELECT memory_entry FROM student_memory WHERE student_id = %s ORDER BY created_at",
-            (student_id,),
+            "SELECT memory_entry FROM student_memory ORDER BY created_at"
         )
         return [row[0] for row in cursor.fetchall()]
     finally:
@@ -81,15 +57,14 @@ def get_student_memory() -> List[str]:
 
 
 def add_student_memory(memory_entry: str) -> bool:
-    """Add a memory entry for the single student."""
-    student_id = get_or_create_student()
+    """Add a memory entry."""
     conn = DatabaseManager.get_connection()
     cursor = conn.cursor()
 
     try:
         cursor.execute(
-            "INSERT INTO student_memory (student_id, memory_entry) VALUES (%s, %s)",
-            (student_id, memory_entry),
+            "INSERT INTO student_memory (memory_entry) VALUES (%s)",
+            (memory_entry,),
         )
         return True
     finally:
@@ -98,15 +73,14 @@ def add_student_memory(memory_entry: str) -> bool:
 
 
 def get_calendar_entry(date: str) -> Optional[Dict[str, Any]]:
-    """Return the calendar entry for the single student on the given date."""
-    student_id = get_or_create_student()
+    """Return the calendar entry for the given date."""
     conn = DatabaseManager.get_connection()
     cursor = conn.cursor(dictionary=True)
 
     try:
         cursor.execute(
-            "SELECT date, topics, n_questions FROM calendar_entries WHERE student_id = %s AND date = %s",
-            (student_id, date),
+            "SELECT date, topics, n_questions FROM calendar_entries WHERE date = %s",
+            (date,),
         )
         result = cursor.fetchone()
         if result:
@@ -118,18 +92,17 @@ def get_calendar_entry(date: str) -> Optional[Dict[str, Any]]:
 
 
 def set_calendar_entry(date: str, topics: List[str], n_questions: int = 1) -> bool:
-    """Create or update the calendar entry for the single student."""
-    student_id = get_or_create_student()
+    """Create or update the calendar entry."""
     conn = DatabaseManager.get_connection()
     cursor = conn.cursor()
 
     try:
         topics_json = json.dumps(topics)
         cursor.execute(
-            """INSERT INTO calendar_entries (student_id, date, topics, n_questions)
-               VALUES (%s, %s, %s, %s)
+            """INSERT INTO calendar_entries (date, topics, n_questions)
+               VALUES (%s, %s, %s)
                ON DUPLICATE KEY UPDATE topics = %s, n_questions = %s""",
-            (student_id, date, topics_json, n_questions, topics_json, n_questions),
+            (date, topics_json, n_questions, topics_json, n_questions),
         )
         return True
     finally:
@@ -138,15 +111,13 @@ def set_calendar_entry(date: str, topics: List[str], n_questions: int = 1) -> bo
 
 
 def get_skill_levels() -> List[Tuple[str, int]]:
-    """Return skill levels for the single student."""
-    student_id = get_or_create_student()
+    """Return skill levels."""
     conn = DatabaseManager.get_connection()
     cursor = conn.cursor()
 
     try:
         cursor.execute(
-            "SELECT topic, skill_level FROM skill_levels WHERE student_id = %s ORDER BY topic",
-            (student_id,),
+            "SELECT topic, skill_level FROM skill_levels ORDER BY topic"
         )
         return cursor.fetchall()
     finally:
@@ -155,17 +126,16 @@ def get_skill_levels() -> List[Tuple[str, int]]:
 
 
 def set_skill_level(topic: str, skill_level: int) -> bool:
-    """Set the skill level for a topic for the single student."""
-    student_id = get_or_create_student()
+    """Set the skill level for a topic."""
     conn = DatabaseManager.get_connection()
     cursor = conn.cursor()
 
     try:
         cursor.execute(
-            """INSERT INTO skill_levels (student_id, topic, skill_level)
-               VALUES (%s, %s, %s)
+            """INSERT INTO skill_levels (topic, skill_level)
+               VALUES (%s, %s)
                ON DUPLICATE KEY UPDATE skill_level = %s""",
-            (student_id, topic, skill_level, skill_level),
+            (topic, skill_level, skill_level),
         )
         return True
     finally:
