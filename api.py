@@ -4,7 +4,7 @@ FastAPI endpoints for the Eigen Coach tutoring system.
 
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from pydantic import BaseModel
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 import json
 import os
 from datetime import datetime
@@ -13,6 +13,7 @@ from datetime import datetime
 from agents.questioner import question_agent
 from agents.chatter import TutorChat
 from agents.finalizer import finalizer_agent
+from agents.orchestrator import Orchestrator
 
 # TinyDB helpers for calendar/skills persistence
 from memory.memory import get_db
@@ -65,6 +66,19 @@ class FinalizeRequest(BaseModel):
 
 class FinalizeResponse(BaseModel):
     deltas: Dict[str, int] | Dict
+
+class SessionNextRequest(BaseModel):
+    stage: str  # one of: init, planned, asked, chatted
+    date: Optional[str] = None
+
+class SessionNextResponse(BaseModel):
+    next: Dict[str, str]
+
+class OrchestrateRequest(BaseModel):
+    payload: Dict[str, Any]
+
+class OrchestrateResponse(BaseModel):
+    result: Dict[str, Any]
 
 
 # In-memory variables
@@ -345,6 +359,96 @@ async def finalize(req: FinalizeRequest):
             # Non-fatal persistence error; return deltas anyway
             print(f"Skill level persistence error: {persist_err}")
         return FinalizeResponse(deltas=deltas if isinstance(deltas, dict) else {"raw": deltas})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/session/next", response_model=SessionNextResponse)
+def session_next(req: SessionNextRequest):
+    """Suggest the next API call for the frontend based on a simple session stage.
+
+    Stages:
+    - init: no plan yet; check calendar; if missing, suggest seeding; else select question
+    - planned: calendar exists; select question
+    - asked: question provided; start/continue chat
+    - chatted: ready to finalize session
+    """
+    try:
+        stage = (req.stage or "").lower()
+        date = req.date or datetime.now().strftime('%Y-%m-%d')
+
+        if stage == "init":
+            # Check if calendar has this date
+            try:
+                db = get_db("calendar")
+                has_date = any((r.get("date") == date) for r in db.all())
+            except Exception:
+                has_date = False
+            if not has_date:
+                example = {
+                    "entries": [
+                        {"date": date, "topics": ["algebra"], "n_questions": 1}
+                    ]
+                }
+                return SessionNextResponse(next={
+                    "method": "POST",
+                    "endpoint": "/calendar/seed",
+                    "description": "Seed today's study topics to enable question selection.",
+                    "example_body": json.dumps(example)
+                })
+            # Calendar exists: suggest selecting a question
+            return SessionNextResponse(next={
+                "method": "GET",
+                "endpoint": f"/question/select?date={date}",
+                "description": "Select a question for today based on the calendar.",
+            })
+
+        if stage == "planned":
+            return SessionNextResponse(next={
+                "method": "GET",
+                "endpoint": f"/question/select?date={date}",
+                "description": "Select a question for the planned date.",
+            })
+
+        if stage == "asked":
+            example = {
+                "student_data": {"exam_name": "Exam", "student_name": "Student", "memory": []},
+                "message": "My attempt is ..."
+            }
+            return SessionNextResponse(next={
+                "method": "POST",
+                "endpoint": "/chat",
+                "description": "Send the student's message to the tutor agent.",
+                "example_body": json.dumps(example)
+            })
+
+        if stage == "chatted":
+            example = {
+                "student_data": {"exam_name": "Exam", "student_name": "Student", "memory": []},
+                "conversation_history": [
+                    {"role": "user", "content": "my answer is ..."},
+                    {"role": "assistant", "content": "..."}
+                ]
+            }
+            return SessionNextResponse(next={
+                "method": "POST",
+                "endpoint": "/session/finalize",
+                "description": "Finalize the session and persist skill deltas.",
+                "example_body": json.dumps(example)
+            })
+
+        # Fallback: suggest planning
+        example = {
+            "entries": [
+                {"date": date, "topics": ["algebra"], "n_questions": 1}
+            ]
+        }
+        return SessionNextResponse(next={
+            "method": "POST",
+            "endpoint": "/calendar/seed",
+            "description": "Unknown stage; seed the calendar to start.",
+            "example_body": json.dumps(example)
+        })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
