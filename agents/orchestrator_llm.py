@@ -3,9 +3,18 @@ from typing import Any, Dict, List
 from datetime import datetime
 import logging
 import os
+import sys
+import traceback
 
 from claude_agent_sdk import query, ClaudeAgentOptions
 from memory.memory import get_db
+
+# Configure enhanced logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stderr
+)
 
 
 SYSTEM_PROMPT = """
@@ -55,22 +64,34 @@ def _infer_session_id(student_data: Dict[str, Any], date: str) -> str:
 
 async def orchestrate_llm(payload: Dict[str, Any]) -> Dict[str, Any]:
     log = logging.getLogger("orchestrator_llm")
-    date = payload.get("date") or datetime.now().strftime('%Y-%m-%d')
-    student_data = payload.get("student_data") or {}
-    session_id = payload.get("session_id") or _infer_session_id(student_data, date)
-    user_input = payload.get("user_input") or ""
-    # Log derived session details
+    log.info("=" * 80)
+    log.info("orchestrate_llm: Starting orchestration")
+    
     try:
-        log.debug(f"orchestrate_llm: session_id={session_id}, date={date}, user_input_len={len(user_input) if isinstance(user_input, str) else 'n/a'}")
-    except Exception:
-        pass
+        date = payload.get("date") or datetime.now().strftime('%Y-%m-%d')
+        student_data = payload.get("student_data") or {}
+        session_id = payload.get("session_id") or _infer_session_id(student_data, date)
+        user_input = payload.get("user_input") or ""
+        
+        log.info(f"orchestrate_llm: session_id={session_id}")
+        log.info(f"orchestrate_llm: date={date}")
+        log.info(f"orchestrate_llm: student_name={student_data.get('student_name', 'unknown')}")
+        log.info(f"orchestrate_llm: user_input_length={len(user_input) if isinstance(user_input, str) else 'n/a'}")
+        
+    except Exception as e:
+        log.error(f"orchestrate_llm: Failed to parse payload: {e}")
+        log.error(f"Traceback: {traceback.format_exc()}")
+        return {"error": "Failed to parse payload", "details": str(e)}
 
-    # Prepare context for the LLM
-    history = _get_recent_history(session_id, date)
     try:
-        log.debug(f"orchestrate_llm: recent_history_count={len(history)}")
-    except Exception:
-        pass
+        # Prepare context for the LLM
+        history = _get_recent_history(session_id, date)
+        log.info(f"orchestrate_llm: Retrieved {len(history)} recent history records")
+    except Exception as e:
+        log.error(f"orchestrate_llm: Failed to get history: {e}")
+        log.error(f"Traceback: {traceback.format_exc()}")
+        history = []
+    
     context = {
         "date": date,
         "student_data": student_data,
@@ -78,58 +99,127 @@ async def orchestrate_llm(payload: Dict[str, Any]) -> Dict[str, Any]:
         "user_input": user_input,
     }
 
-    # Ensure MCP servers launch from project root
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    options = ClaudeAgentOptions(
-        model="claude-4.5-haiku-latest",
-        system_prompt=SYSTEM_PROMPT,
-        permission_mode='acceptEdits',
-        cwd=project_root,
-        mcp_servers={
-            "memory": {"command": "python", "args": ["memory/memory_mcp.py"]},
-            "question_bank": {"command": "python", "args": ["question_bank/qb_mcp.py"]},
-        },
-    )
+    try:
+        # Ensure MCP servers launch from project root
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        log.info(f"orchestrate_llm: project_root={project_root}")
+        
+        # Verify MCP server files exist
+        memory_mcp_path = os.path.join(project_root, "memory", "memory_mcp.py")
+        qb_mcp_path = os.path.join(project_root, "question_bank", "qb_mcp.py")
+        
+        if not os.path.exists(memory_mcp_path):
+            log.error(f"orchestrate_llm: memory_mcp.py not found at {memory_mcp_path}")
+        else:
+            log.info(f"orchestrate_llm: memory_mcp.py found at {memory_mcp_path}")
+            
+        if not os.path.exists(qb_mcp_path):
+            log.error(f"orchestrate_llm: qb_mcp.py not found at {qb_mcp_path}")
+        else:
+            log.info(f"orchestrate_llm: qb_mcp.py found at {qb_mcp_path}")
+        
+        options = ClaudeAgentOptions(
+            model="haiku",
+            system_prompt=SYSTEM_PROMPT,
+            permission_mode='acceptEdits',
+            cwd=project_root,
+            mcp_servers={
+                "memory": {
+                    "command": "python3",
+                    "args": ["-m", "memory.memory_mcp"],
+                    "env": {"PYTHONPATH": project_root}
+                },
+                "question_bank": {
+                    "command": "python3",
+                    "args": ["-m", "question_bank.qb_mcp"],
+                    "env": {"PYTHONPATH": project_root}
+                },
+            },
+        )
+        log.info("orchestrate_llm: ClaudeAgentOptions created successfully")
+        
+    except Exception as e:
+        log.error(f"orchestrate_llm: Failed to create ClaudeAgentOptions: {e}")
+        log.error(f"Traceback: {traceback.format_exc()}")
+        return {"error": "Failed to configure agent options", "details": str(e)}
 
     # Ask the LLM to produce the plan JSON
     prompt = (
         "Decide the next step given this context. Return ONLY the JSON as specified.\n\n" +
         json.dumps(context)
     )
+    log.info(f"orchestrate_llm: Prompt prepared (length={len(prompt)})")
+    log.info(f"Prompt is: {prompt}")
+    log.info(f"Context is: {json.dumps(context, indent=2)}")
 
     last_assistant_text = None
+    message_count = 0
+    
     try:
-        log.debug("orchestrate_llm: starting query stream to LLM")
+        log.info("orchestrate_llm: Starting query stream to LLM")
         async for msg in query(prompt=prompt, options=options):
-            role = getattr(msg, "role", None)
-            content = getattr(msg, "content", None)
-            # Only consider assistant messages for plan JSON
+            message_count += 1
+            log.debug(f"orchestrate_llm: Received message #{message_count}")
+            
             try:
-                log.debug(f"orchestrate_llm: stream msg role={role}, has_content={bool(content)}")
-            except Exception:
-                pass
-            if role == "assistant" and content:
-                last_assistant_text = content
-                try:
-                    plan = json.loads(content)
-                    log.info("orchestrate_llm: parsed assistant JSON plan")
-                    return plan
-                except Exception:
-                    # keep iterating to see if a later assistant msg has clean JSON
-                    pass
-    except Exception as e:
-        # Surface internal errors to server logs; API layer will return generic 500
-        log.error(e, stack_info=True)
-        log.error(f"LLM orchestrator failed: {e}", stack_info=True)
+                role = getattr(msg, "role", None)
+                content = getattr(msg, "content", None)
+                log.debug(f"orchestrate_llm: Message role={role}, content_length={len(content) if content else 0}")
+                
+                if role == "assistant" and content:
+                    last_assistant_text = content
+                    log.debug(f"orchestrate_llm: Assistant content: {content[:200]}...")
+                    
+                    try:
+                        plan = json.loads(content)
+                        log.info("orchestrate_llm: Successfully parsed assistant JSON plan")
+                        log.info(f"orchestrate_llm: Plan action: {plan.get('action', 'unknown')}")
+                        log.info("=" * 80)
+                        return plan
+                        
+                    except json.JSONDecodeError as json_err:
+                        log.warning(f"orchestrate_llm: JSON parse failed on message #{message_count}: {json_err}")
+                        log.debug(f"orchestrate_llm: Failed content: {content}")
+                        # Continue to next message
+                        
+            except Exception as msg_err:
+                log.error(f"orchestrate_llm: Error processing message #{message_count}: {msg_err}")
+                log.error(f"Traceback: {traceback.format_exc()}")
+                continue
+                
+    except Exception as query_err:
+        log.error(f"orchestrate_llm: Query stream failed: {query_err}")
+        log.error(f"Traceback: {traceback.format_exc()}")
+        log.error(f"orchestrate_llm: This usually means the MCP server failed to start")
+        log.error(f"orchestrate_llm: Check MCP server stderr output above for details")
+        
+        # Try to return last assistant text as fallback
+        if last_assistant_text:
+            try:
+                plan = json.loads(last_assistant_text)
+                log.info("orchestrate_llm: Returning fallback plan from last assistant message")
+                return plan
+            except Exception as fallback_err:
+                log.warning(f"orchestrate_llm: Fallback JSON parse failed: {fallback_err}")
+                return {"error": "Query failed and fallback parsing failed", "raw": last_assistant_text}
+        else:
+            return {"error": "Query failed and no assistant content received"}
 
-    # Fallbacks
+    # Final fallbacks
     if last_assistant_text:
+        log.info(f"orchestrate_llm: Query completed with {message_count} messages; attempting final JSON parse")
         try:
             plan = json.loads(last_assistant_text)
-            log.info("orchestrate_llm: returning plan from last assistant message (fallback)")
+            log.info("orchestrate_llm: Successfully parsed final assistant message")
+            log.info(f"orchestrate_llm: Plan action: {plan.get('action', 'unknown')}")
+            log.info("=" * 80)
             return plan
-        except Exception:
-            log.warning("orchestrate_llm: last assistant message not valid JSON; returning raw text")
+        except Exception as final_err:
+            log.warning(f"orchestrate_llm: Final JSON parse failed: {final_err}")
+            log.warning(f"orchestrate_llm: Returning raw text response")
             return {"raw": last_assistant_text}
-    log.warning("orchestrate_llm: no assistant content received; returning sentinel")
+            
+    log.warning(f"orchestrate_llm: No assistant content received after {message_count} messages")
+    log.warning("orchestrate_llm: Returning sentinel response")
+    log.info("=" * 80)
     return {"raw": "no_assistant_content"}

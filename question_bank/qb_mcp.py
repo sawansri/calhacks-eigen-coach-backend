@@ -1,4 +1,19 @@
 from typing import Any, Optional
+import sys
+import os
+import logging
+import json
+
+# Configure logging
+log = logging.getLogger("question_bank_mcp")
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stderr
+)
+
+from claude_agent_sdk import tool, create_sdk_mcp_server
+
 try:
     import mysql.connector  # type: ignore
     from mysql.connector import Error  # type: ignore
@@ -8,10 +23,6 @@ except Exception:
     mysql = None  # type: ignore
     Error = Exception  # type: ignore
     MYSQL_AVAILABLE = False
-from mcp.server.fastmcp import FastMCP
-
-# Initialize FastMCP server
-mcp = FastMCP("question_bank")
 
 # Helpers
 def get_db_connection():
@@ -28,7 +39,7 @@ def get_db_connection():
         )
         return connection
     except Error as e:  # type: ignore
-        print(f"Database connection error: {e}")
+        log.error(f"Database connection error: {e}")
         return None
 
 def get_unique_topics_helper() -> list | str:
@@ -85,16 +96,24 @@ def get_unique_topics_helper() -> list | str:
             cursor.close()
             connection.close()
 
-@mcp.tool()
-async def get_question_by_topic(topic: str) -> str:
+@tool("get_question_by_topic", "Get questions from the database by topic tag", {"topic": str})
+async def get_question_by_topic(args: dict[str, Any]) -> dict[str, Any]:
     """Get questions from the database by topic tag.
 
     Args:
         topic: Topic tag to search for (topic_tag1, topic_tag2, or topic_tag3)
     """
+    topic = args.get("topic", "")
+    
     connection = get_db_connection()
     if not connection:
-        return "Unable to connect to database."
+        text = "Unable to connect to database."
+        return {
+            "content": [{
+                "type": "text",
+                "text": text
+            }]
+        }
     
     try:
         cursor = connection.cursor(dictionary=True)
@@ -103,11 +122,11 @@ async def get_question_by_topic(topic: str) -> str:
         results = cursor.fetchall()
         
         if not results:
-            return f"No questions found for topic: {topic}"
-        
-        formatted_results = []
-        for row in results:
-            formatted = f"""
+            text = f"No questions found for topic: {topic}"
+        else:
+            formatted_results = []
+            for row in results:
+                formatted = f"""
                 Question: {row['question_prompt']}
                 Answer: {row['answer']}
                 Explanation: {row['explanation']}
@@ -115,33 +134,85 @@ async def get_question_by_topic(topic: str) -> str:
                 Topic Tags: {row['topic_tag1']}, {row['topic_tag2']}, {row['topic_tag3']}
                 Has Been Asked: {row['has_been_asked']}
                 ---"""
-            formatted_results.append(formatted)
-        
-        return "\n".join(formatted_results)
+                formatted_results.append(formatted)
+            
+            text = "\n".join(formatted_results)
     
     except Error as e:
-        return f"Database query error: {e}"
+        text = f"Database query error: {e}"
     finally:
         if connection.is_connected():
             cursor.close()
             connection.close()
+    
+    return {
+        "content": [{
+            "type": "text",
+            "text": text
+        }]
+    }
 
-@mcp.tool()
-async def get_unique_topics() -> str:
+@tool("get_unique_topics", "Get all unique topics from the question bank with their average difficulty scores", {})
+async def get_unique_topics(args: dict[str, Any]) -> dict[str, Any]:
     """Get all unique topics from the question bank with their average difficulty scores."""
     result = get_unique_topics_helper()
     
     if isinstance(result, str):
-        return result
+        text = result
+    else:
+        # Format the list with topic-score pairs for display
+        formatted_pairs = []
+        for topic, score in result:
+            formatted_pairs.append(f"{topic}: {score}")
+        
+        text = "Topics with Average Scores:\n" + "\n".join(f"- {pair}" for pair in formatted_pairs)
     
-    # Format the list with topic-score pairs for display
-    formatted_pairs = []
-    for topic, score in result:
-        formatted_pairs.append(f"{topic}: {score}")
-    
-    return "Topics with Average Scores:\n" + "\n".join(f"- {pair}" for pair in formatted_pairs)
+    return {
+        "content": [{
+            "type": "text",
+            "text": text
+        }]
+    }
+
+
+# Create the SDK MCP server with all tools
+qb_server = create_sdk_mcp_server(
+    name="question-bank",
+    version="1.0.0",
+    tools=[
+        get_question_by_topic,
+        get_unique_topics
+    ]
+)
 
 
 if __name__ == "__main__":
-    mcp.run()
+    try:
+        log.info("Starting Question Bank MCP Server...")
+        log.info(f"Working directory = {os.getcwd()}")
+        log.info(f"MySQL available = {MYSQL_AVAILABLE}")
+        
+        if MYSQL_AVAILABLE:
+            # Try to connect to verify MySQL is working
+            conn = get_db_connection()
+            if conn:
+                log.info("Successfully connected to MySQL database")
+                conn.close()
+            else:
+                log.warning("Failed to connect to MySQL database")
+        else:
+            log.warning("MySQL not available - MCP will run in degraded mode")
+        
+        log.info("Starting qb_server...")
+        qb_server.run()
+        log.info("qb_server completed")
+        
+    except KeyboardInterrupt:
+        log.info("Interrupted by user")
+        sys.exit(0)
+    except Exception as e:
+        log.error(f"FATAL ERROR: {e}")
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
 
