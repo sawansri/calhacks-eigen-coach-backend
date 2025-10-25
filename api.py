@@ -3,6 +3,7 @@ FastAPI endpoints for the Eigen Coach tutoring system.
 """
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Dict, Optional, List, Any
 from datetime import datetime
@@ -17,6 +18,7 @@ from agents.finalizer import finalizer_agent
 
 # Database
 from database.db import DatabaseManager
+from database.db_helpers import get_student_name, get_exam_name, get_student_memory
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -51,8 +53,7 @@ class InitializerResponse(BaseModel):
 
 class QuestionerRequest(BaseModel):
     """Request to select a question."""
-    student_data: StudentData
-    date: Optional[str] = None
+    date: Optional[str]
 
 
 class QuestionerResponse(BaseModel):
@@ -62,8 +63,8 @@ class QuestionerResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     """Request for tutoring chat."""
-    student_data: StudentData
     user_message: str
+    question_answer: str
     conversation_history: List[Dict] = []
 
 
@@ -94,6 +95,19 @@ def health():
 
 
 # ============================================================================
+# Helper Functions
+# ============================================================================
+
+def get_student_data_from_db() -> Dict[str, Any]:
+    """Retrieve student data from database."""
+    return {
+        "student_name": get_student_name(),
+        "exam_name": get_exam_name(),
+        "memory": get_student_memory()
+    }
+
+
+# ============================================================================
 # Initializer Agent Endpoint
 # ============================================================================
 
@@ -110,7 +124,7 @@ async def initializer_endpoint(request: InitializerRequest):
     """
     try:
         date = request.date or datetime.now().strftime('%Y-%m-%d')
-        student_data = request.student_data.dict()
+        student_data = get_student_data_from_db()
         
         # Call initializer agent
         result = await initializer_agent(student_data, date)
@@ -141,10 +155,9 @@ async def questioner_endpoint(request: QuestionerRequest):
     """
     try:
         date = request.date or datetime.now().strftime('%Y-%m-%d')
-        student_data = request.student_data.dict()
         
         # Call question agent
-        result = await question_agent(student_data, date)
+        result = await question_agent(date)
         
         return QuestionerResponse(
             questions=result
@@ -169,10 +182,12 @@ async def chatter_endpoint(request: ChatRequest):
         ChatResponse with tutor response
     """
     try:
-        student_data = request.student_data.dict()
+        student_data = get_student_data_from_db()
+        question_answer = request.question_answer
+        conversation_history = request.conversation_history
         
         # Create or get chat session
-        chat = TutorChat(student_data)
+        chat = TutorChat(student_data, question_answer, conversation_history)
         response = await chat.chat(request.user_message)
         
         return ChatResponse(response=response)
@@ -196,7 +211,7 @@ async def finalizer_endpoint(request: FinalizerRequest):
         FinalizerResponse with score deltas for each topic
     """
     try:
-        student_data = request.student_data.dict()
+        student_data = get_student_data_from_db()
         
         # Call finalizer agent
         result = await finalizer_agent(student_data, request.conversation_history)

@@ -10,8 +10,6 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: "joe_is_very_cool"
       MYSQL_DATABASE: "calhacks"
-    volumes:
-      - mysql-data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-joe_is_very_cool}"]
       interval: 5s
