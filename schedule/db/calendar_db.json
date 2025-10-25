@@ -1,0 +1,14 @@
+{
+  "calendar_entries": [
+    {
+      "index": 1,
+      "date": "2024-01-15",
+      "topics": ["example_topic"]
+    },
+    {
+      "index": 2,
+      "date": "2024-01-20",
+      "topics": ["another_topic"]
+    }
+  ]
+}
