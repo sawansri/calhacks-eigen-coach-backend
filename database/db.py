@@ -1,12 +1,9 @@
-"""
-Database manager for the Eigen Coach system.
-Manages MySQL connection pool and provides database access.
-"""
+"""Database manager for the Eigen Coach system."""
 
-import mysql.connector
-from mysql.connector import pooling, Error
+from pathlib import Path
 from typing import Optional
-import os
+
+from mysql.connector import Error, pooling
 
 
 class DatabaseManager:
@@ -32,6 +29,7 @@ class DatabaseManager:
             
             # Run migrations to create tables
             DatabaseManager._run_migrations()
+            DatabaseManager._run_seeders()
             
         except Error as e:
             print(f"[DatabaseManager] Error initializing pool: {e}")
@@ -39,32 +37,56 @@ class DatabaseManager:
     
     @staticmethod
     def _run_migrations():
-        """Run SQL migrations to create tables."""
-        migration_file = "migrations/001_create_memory_tables.sql"
-        
-        if not os.path.exists(migration_file):
-            print(f"[DatabaseManager] Migration file not found: {migration_file}")
+        """Run SQL migrations found in the migrations directory."""
+        migrations_dir = Path(__file__).resolve().parent.parent / "migrations"
+
+        if not migrations_dir.exists():
+            print(f"[DatabaseManager] Migrations directory not found: {migrations_dir}")
             return
-        
+
+        sql_files = sorted(migrations_dir.glob("*.sql"))
+        if not sql_files:
+            print("[DatabaseManager] No migration files detected")
+            return
+
         try:
             conn = DatabaseManager.get_connection()
             cursor = conn.cursor()
-            
-            with open(migration_file, 'r') as f:
-                sql_script = f.read()
-            
-            # Execute each statement separately
-            for statement in sql_script.split(';'):
-                statement = statement.strip()
-                if statement:
-                    cursor.execute(statement)
-            
+
+            for file_path in sql_files:
+                with open(file_path, "r", encoding="utf-8") as handle:
+                    sql_script = handle.read()
+
+                for statement in sql_script.split(';'):
+                    statement = statement.strip()
+                    if statement:
+                        cursor.execute(statement)
+
             cursor.close()
             conn.close()
             print("[DatabaseManager] Migrations completed successfully")
-            
+
         except Error as e:
             print(f"[DatabaseManager] Migration error: {e}")
+
+    @staticmethod
+    def _run_seeders():
+        """Run default data seeders after migrations."""
+        try:
+            from database.seed_data import run_seeders
+        except ImportError as exc:
+            print(f"[DatabaseManager] Unable to import seeders: {exc}")
+            return
+
+        conn = None
+        try:
+            conn = DatabaseManager.get_connection()
+            run_seeders(conn)
+        except Error as e:
+            print(f"[DatabaseManager] Seeder error: {e}")
+        finally:
+            if conn is not None:
+                conn.close()
     
     @staticmethod
     def get_connection():

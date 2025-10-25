@@ -14,13 +14,12 @@ sys.path.insert(0, '/Users/joe/repostories/calhacks/backend')
 
 from database.db import DatabaseManager
 from database.db_helpers import (
-    get_or_create_student,
     get_student_memory,
     add_student_memory,
     get_calendar_entry,
-    set_calendar_entry,
     get_skill_levels,
-    set_skill_level
+    set_skill_level,
+    get_questions_by_topic,
 )
 
 # Configure logging
@@ -46,15 +45,7 @@ async def get_question_by_topic(args: dict[str, Any]) -> dict[str, Any]:
     topic = args.get("topic", "")
     
     try:
-        conn = DatabaseManager.get_connection()
-        cursor = conn.cursor(dictionary=True)
-        
-        query = """
-            SELECT * FROM questions 
-            WHERE topic_tag1 = %s OR topic_tag2 = %s OR topic_tag3 = %s
-        """
-        cursor.execute(query, (topic, topic, topic))
-        results = cursor.fetchall()
+        results = get_questions_by_topic(topic)
         
         if not results:
             text = f"No questions found for topic: {topic}"
@@ -71,8 +62,6 @@ Asked: {row['has_been_asked']}
 ---""")
             text = "\n".join(formatted)
         
-        cursor.close()
-        conn.close()
         return {"content": [{"type": "text", "text": text}]}
         
     except Exception as e:
@@ -137,17 +126,14 @@ async def get_unique_topics(args: dict[str, Any]) -> dict[str, Any]:
 
 @tool(
     "get_skill_level_pairs",
-    "Get topic-skill level pairs for a student",
-    {"student_name": str, "exam_name": str}
+    "Get topic-skill level pairs for the student",
+    {}
 )
 async def get_skill_level_pairs(args: dict[str, Any]) -> dict[str, Any]:
     """Get skill level pairs for a student."""
-    student_name = args.get("student_name", "default")
-    exam_name = args.get("exam_name", "default")
     
     try:
-        student_id = get_or_create_student(student_name, exam_name)
-        pairs = get_skill_levels(student_id)
+        pairs = get_skill_levels()
         
         if not pairs:
             text = "No skill levels found."
@@ -164,17 +150,14 @@ async def get_skill_level_pairs(args: dict[str, Any]) -> dict[str, Any]:
 @tool(
     "get_topics_by_date",
     "Get topics and question count for a specific date",
-    {"student_name": str, "exam_name": str, "date": str}
+    {"date": str}
 )
 async def get_topics_by_date(args: dict[str, Any]) -> dict[str, Any]:
     """Get calendar entry for a date."""
-    student_name = args.get("student_name", "default")
-    exam_name = args.get("exam_name", "default")
     date = args.get("date", "")
     
     try:
-        student_id = get_or_create_student(student_name, exam_name)
-        entry = get_calendar_entry(student_id, date)
+        entry = get_calendar_entry(date)
         
         if not entry:
             text = f"No schedule found for {date}."
@@ -190,18 +173,15 @@ async def get_topics_by_date(args: dict[str, Any]) -> dict[str, Any]:
 
 @tool(
     "add_memory_entry",
-    "Add a memory note for a student",
-    {"student_name": str, "exam_name": str, "memory_entry": str}
+    "Add a memory note for the student",
+    {"memory_entry": str}
 )
 async def add_memory_entry(args: dict[str, Any]) -> dict[str, Any]:
     """Add memory entry for a student."""
-    student_name = args.get("student_name", "default")
-    exam_name = args.get("exam_name", "default")
     memory_entry = args.get("memory_entry", "")
     
     try:
-        student_id = get_or_create_student(student_name, exam_name)
-        success = add_student_memory(student_id, memory_entry)
+        success = add_student_memory(memory_entry)
         
         text = f"Memory added: '{memory_entry}'" if success else "Failed to add memory"
         return {"content": [{"type": "text", "text": text}]}
@@ -213,18 +193,15 @@ async def add_memory_entry(args: dict[str, Any]) -> dict[str, Any]:
 @tool(
     "update_skill_level",
     "Update or set skill level for a topic",
-    {"student_name": str, "exam_name": str, "topic": str, "skill_level": int}
+    {"topic": str, "skill_level": int}
 )
 async def update_skill_level(args: dict[str, Any]) -> dict[str, Any]:
     """Update skill level for a student topic."""
-    student_name = args.get("student_name", "default")
-    exam_name = args.get("exam_name", "default")
     topic = args.get("topic", "")
     skill_level = args.get("skill_level", 0)
     
     try:
-        student_id = get_or_create_student(student_name, exam_name)
-        success = set_skill_level(student_id, topic, skill_level)
+        success = set_skill_level(topic, skill_level)
         
         text = f"Skill level updated: {topic} = {skill_level}" if success else "Failed to update"
         return {"content": [{"type": "text", "text": text}]}

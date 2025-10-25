@@ -1,0 +1,14 @@
+[
+  {
+    "topic": "algebra",
+    "skill_level": 45
+  },
+  {
+    "topic": "geometry",
+    "skill_level": 60
+  },
+  {
+    "topic": "calculus",
+    "skill_level": 35
+  }
+]

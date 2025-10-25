@@ -52,8 +52,8 @@ async def finalizer_agent(student_data: dict, conversation_history: list):
     exam_name = student_data.get("exam_name", "default")
     
     # Get current skill levels and available topics
-    student_id = get_or_create_student(student_name, exam_name)
-    skill_levels = get_skill_levels(student_id)
+    get_or_create_student(student_name, exam_name)
+    skill_levels = get_skill_levels()
     current_skills = {t: l for t, l in skill_levels}
     
     topics = get_unique_topics_helper()
@@ -115,5 +115,5 @@ Return ONLY valid JSON with topic names as keys and scores (0-100) as values. Ex
         return {"general": 50}
 
     for topic, score in result.items():
-        set_skill_level(student_id, topic, score)
+        set_skill_level(topic, score)
     return result

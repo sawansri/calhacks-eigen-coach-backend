@@ -1,0 +1,32 @@
+[
+  {
+    "question_prompt": "Solve for x: 2x + 5 = 17.",
+    "answer": "x = 6",
+    "explanation": "Subtract 5 from both sides to get 2x = 12, then divide by 2.",
+    "difficulty": "easy",
+    "topic_tag1": "algebra",
+    "topic_tag2": "linear_equations",
+    "topic_tag3": null,
+    "has_been_asked": false
+  },
+  {
+    "question_prompt": "What is the derivative of f(x) = 3x^2?",
+    "answer": "f'(x) = 6x",
+    "explanation": "Apply the power rule: bring down the exponent and subtract one from it.",
+    "difficulty": "medium",
+    "topic_tag1": "calculus",
+    "topic_tag2": "derivatives",
+    "topic_tag3": null,
+    "has_been_asked": false
+  },
+  {
+    "question_prompt": "If a right triangle has legs of lengths 3 and 4, what is the hypotenuse?",
+    "answer": "5",
+    "explanation": "Use the Pythagorean theorem: sqrt(3^2 + 4^2) = 5.",
+    "difficulty": "easy",
+    "topic_tag1": "geometry",
+    "topic_tag2": "pythagorean_theorem",
+    "topic_tag3": null,
+    "has_been_asked": false
+  }
+]

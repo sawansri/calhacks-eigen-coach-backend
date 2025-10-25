@@ -57,8 +57,7 @@ class QuestionerRequest(BaseModel):
 
 class QuestionerResponse(BaseModel):
     """Response from questioner agent."""
-    question: str
-    topic: Optional[str] = None
+    questions: List[Dict[str, Any]]
 
 
 class ChatRequest(BaseModel):
@@ -142,13 +141,13 @@ async def questioner_endpoint(request: QuestionerRequest):
     """
     try:
         date = request.date or datetime.now().strftime('%Y-%m-%d')
+        student_data = request.student_data.dict()
         
         # Call question agent
-        result = await question_agent(date)
+        result = await question_agent(student_data, date)
         
         return QuestionerResponse(
-            question=result,
-            topic=None
+            questions=result
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Questioner error: {str(e)}")

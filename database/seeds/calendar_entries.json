@@ -1,0 +1,12 @@
+[
+  {
+    "date": "2025-01-15",
+    "topics": ["algebra", "geometry"],
+    "n_questions": 2
+  },
+  {
+    "date": "2025-01-16",
+    "topics": ["calculus", "trigonometry"],
+    "n_questions": 2
+  }
+]
