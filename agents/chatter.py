@@ -62,7 +62,7 @@ Guidelines:
             options = ClaudeAgentOptions(
                 system_prompt=self.system_prompt,
                 permission_mode='acceptEdits',
-                cwd="/Users/joe/repostories/calhacks/backend",
+                # cwd="/Users/joe/repostories/calhacks/backend",
                 mcp_servers={
                     "memory": {
                         "command": "python",

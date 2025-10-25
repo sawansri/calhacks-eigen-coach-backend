@@ -5,7 +5,7 @@
 
 import asyncio
 import sys
-sys.path.insert(0, '/Users/joe/repostories/calhacks/backend')
+# sys.path.insert(0, '/Users/joe/repostories/calhacks/backend')
 
 from claude_agent_sdk import query, ClaudeAgentOptions
 from memory.memory_mcp import get_skill_level_pairs_helper
@@ -66,7 +66,7 @@ Example: {"calculus": 12, "geometry": 99, "algebra": 0}
 
 Do not include explanations or any other text - ONLY the JSON object.""",
         permission_mode='acceptEdits',
-        cwd="/Users/joe/repostories/calhacks/backend",
+        # cwd="/Users/joe/repostories/calhacks/backend",
         mcp_servers={
             "memory": {
                 "command": "python",

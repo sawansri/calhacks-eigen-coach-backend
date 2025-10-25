@@ -3,6 +3,8 @@ from mysql.connector import Error
 
 def initialize_database():
     """Initialize MySQL database and create questions table"""
+    connection = None
+    cursor = None
     try:
         # Connect to MySQL server
         connection = mysql.connector.connect(
@@ -41,9 +43,12 @@ def initialize_database():
     except Error as e:
         print(f"Error: {e}")
     finally:
-        if connection.is_connected():
-            cursor.close()
-            connection.close()
+        try:
+            if cursor is not None:
+                cursor.close()
+        finally:
+            if connection is not None and getattr(connection, "is_connected", lambda: False)():
+                connection.close()
 
 if __name__ == "__main__":
     initialize_database()

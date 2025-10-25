@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8
+    container_name: calhacks-mysql
+    restart: unless-stopped
+    ports:
+      - "8003:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "joe_is_very_cool"
+      MYSQL_DATABASE: "calhacks"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-joe_is_very_cool}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  mysql-data:

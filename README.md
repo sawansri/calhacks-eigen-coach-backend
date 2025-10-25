@@ -8,10 +8,10 @@ Question Bank Agent determines tags/question topics, use math/algorithms + sensi
 ## Question Bank --> tags and topics
 Question Bank Agent processes exam, determines exam, determines topics per exam
 
-### VectorDB (ChromaDB)
+### Question Bank (MySQL) and Memory (TinyDB via MCP)
 
-#### Pre-processing before vectorizing in DB
-Need LLM to process exams, extracting exam type, labelling each question by topic (tagging them basically)
+#### Pre-processing before inserting into DB
+Need LLM or simple rules to process exams, extracting exam type, and labeling each question by topic (tagging them). Tagged questions are stored in MySQL.
 
 ## Flexible --> no pre-designing, generate on the go
 
@@ -32,8 +32,6 @@ Other info?
 
 Topic explanations?
 
-RAG Layer (Knowledge Base)
-
 Extracted questions (tagged)
 
 Proctoring guidelines, etc.
@@ -48,9 +46,9 @@ No pre-designing
 
 Track progress
 
-User State (Stored in user_state.json)
+User State (JSON or TinyDB)
 
-Single JSON file (e.g., user_state.json) to store all persistent user data.
+Single JSON file (e.g., user_state.json) or TinyDB collections to store persistent user data.
 
 User preferences (e.g., subjects, difficulty).
 
@@ -82,7 +80,7 @@ Parses uploads
 
 Structures and tags data
 
-Outputs: Docs and labeled data (to be stored in ChromaDB).
+Outputs: Docs and labeled data (to be stored in MySQL question bank).
 
 2. Planner (Scheduler) Agent
 
@@ -110,14 +108,71 @@ Searches for external test banks, resources, etc.
 
 Data Storage
 
-ChromaDB
+MySQL (Question Bank)
 
-Stores the vector-indexed knowledge base (extracted questions, guidelines, etc.).
+Stores tagged questions with prompts, answers, explanations, difficulty, topic tags, and asked flags. Managed via `question_bank/qb.py` and exposed to agents via the Question Bank MCP (`question_bank/qb_mcp.py`).
 
-Used by the RAG Layer.
+TinyDB (Memory/Calendar/Skills via Memory MCP)
+
+Lightweight non-SQL storage for:
+- Memory (long-term student notes)
+- Calendar (date → topics, n_questions)
+- Skill levels (per-topic scores)
+
+Exposed to agents via the Memory MCP (`memory/memory_mcp.py`).
 
 JSON File (user_state.json)
 
-Stores all user-specific data (preferences, progress, etc.).
+Optional storage for user preferences, progress, and feedback history. Currently not wired into agents.
 
-Used by the Orchestrator, Planner, and Grader agents.
+## Current Implementation Status
+
+- Implemented:
+  - Question Bank initialization in MySQL (`question_bank/qb.py`).
+  - Question Bank MCP (`question_bank/qb_mcp.py`):
+    - `get_question_by_topic`, `get_unique_topics` (+ helper).
+  - Memory MCP (`memory/memory_mcp.py`):
+    - `get_topics_by_date`, `get_skill_level_pairs`, `add_memory_entry`, `write_to_database`.
+  - Agents:
+    - Question selection agent (`agents/questioner.py`) uses both MCPs.
+    - Tutor chat agent (`agents/chatter.py`) with streaming chat and Memory MCP.
+    - Session finalizer (`agents/finalizer.py`) computes topic score deltas using MCPs.
+  - Minimal FastAPI app (`api.py`) with placeholder endpoints for storing values; to be expanded to orchestrate agents.
+
+- Planned/To-do:
+  - Document ingestion pipeline to parse uploads and insert tagged questions into MySQL.
+  - Rule-based Planner to populate TinyDB calendar with topics by date and number of questions.
+  - Expand FastAPI to expose endpoints for calendar seeding, question selection, chat, and session finalization.
+  - Seeding scripts for MySQL (sample questions) and TinyDB (calendar/memory/skill levels).
+  - Optional: RAG/vector store integration if needed (not currently used).
+
+## Local Development
+
+1) Dependencies
+
+```
+pip install -r requirements.txt
+```
+
+2) MySQL for Question Bank
+
+- The code expects MySQL at `localhost:8003` with user `root` and a password configured in `question_bank/qb.py`.
+- Initialize database and table:
+
+```
+python -m question_bank.qb
+```
+
+3) Memory MCP and TinyDB
+
+- MCP processes are launched by agents automatically. TinyDB JSON files are created in `db/` on first write.
+
+4) Run API (work in progress)
+
+```
+uvicorn api:app --reload
+```
+
+## Notes
+
+- ChromaDB is no longer used. The system now relies on MySQL for the question bank and TinyDB (via MCP) for memory/calendar/skills.

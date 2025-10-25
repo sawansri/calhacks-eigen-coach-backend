@@ -8,29 +8,12 @@ from typing import Dict, Optional
 import json
 import os
 
-from src.orchestrator_agent import OrchestratorAgent
-from src.document_ingestion_agent import DocumentIngestionAgent
-from src.planner_agent import PlannerAgent
-from src.tutor_agent import TutorAgent
-from src.feedback_agent import FeedbackAgent
-from src.scraper_agent import ScraperAgent
-
-
 # Initialize FastAPI app
 app = FastAPI(
     title="Eigen Coach API",
     description="API for the Eigen Coach AI tutoring system",
     version="1.0.0"
 )
-
-# Initialize agents
-orchestrator = OrchestratorAgent()
-doc_ingestion = DocumentIngestionAgent()
-planner = PlannerAgent()
-tutor = TutorAgent()
-feedback = FeedbackAgent()
-scraper = ScraperAgent()
-
 
 # ============================================================================
 # In-Memory Storage for User Data

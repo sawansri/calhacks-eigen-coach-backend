@@ -16,7 +16,7 @@ Answer: {answer} | Explanation: {explanation} | Difficulty: {difficulty} | Topic
 
 Use the available MCP tools to access question bank data and user memory.""",
         permission_mode='acceptEdits',
-        cwd="/Users/joe/repostories/calhacks/backend",
+        # cwd="/Users/joe/repostories/calhacks/backend",
         mcp_servers={
             "question_bank": {
                 "command": "python",
