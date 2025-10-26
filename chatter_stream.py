@@ -1,35 +1,41 @@
 #!/usr/bin/env python3
 
-"""Quick helper to view streaming responses from the chatter endpoint."""
+"""Quick helper to send a single request to the chatter endpoint."""
 
 import asyncio
 from datetime import datetime
 import httpx
 
 PAYLOAD = {
-    "user_message": "Can you help me reason through the triangle angle sum?",
-    "question_answer": "The sum of angles in a triangle is 180 degrees",
-    "conversation_history": [
-        {
-            "tutor": "What is the sum of the angles in a triangle?",
-            "student": "I think it might be 180 but I am not positive."
-        }
-    ]
+    "session_id": "demo-session",
+    "user_message": "[tutor]: 'what is the sum of the angles in a triangle?' [student]: 'The sum of angles in a triangle is 270 degrees'",
+    "question_answer": "180 degrees",
+}
+
+PAYLOAD_2 = {
+    "session_id": "demo-session2",
+    "user_message": "[student]: 'Okay can you explain a bit more about it?'",
+    "question_answer": "180 degrees",
 }
 
 
 async def main() -> None:
     async with httpx.AsyncClient(timeout=None) as client:
-        async with client.stream(
-            "POST",
-            "http://localhost:8000/chatter/stream",
+        response = await client.post(
+            "http://localhost:8000/chatter",
             json=PAYLOAD,
-        ) as response:
-            response.raise_for_status()
-            async for chunk in response.aiter_text():
-                if chunk:
-                    timestamp = datetime.now().strftime("%H:%M:%S")
-                    print(f"[{timestamp}] chunk -> {chunk!r}", flush=True)
+        )
+        response.raise_for_status()
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] response -> {response.json()}", flush=True)
+    
+        response2 = await client.post(
+            "http://localhost:8000/chatter",
+            json=PAYLOAD_2,
+        )
+        response2.raise_for_status()
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] response2 -> {response2.json()}", flush=True)
 
 
 if __name__ == "__main__":

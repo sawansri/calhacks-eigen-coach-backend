@@ -3,9 +3,8 @@ FastAPI endpoints for the Eigen Coach tutoring system.
 """
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, List, Any, Union
 from datetime import datetime
 import asyncio
 import json
@@ -78,7 +77,7 @@ class ChatResponse(BaseModel):
 class FinalizerRequest(BaseModel):
     """Request for performance evaluation."""
     student_data: StudentData
-    conversation_history: List[Dict]
+    conversation_history: Union[str, List[Dict]]  # Accept both string format and list format
 
 
 class FinalizerResponse(BaseModel):
@@ -200,6 +199,7 @@ async def chatter_endpoint(request: ChatRequest):
             chat_session = create_session(
                 session_id=request.session_id,
                 student_data=student_data,
+                # for first time interaction question answer comes in format of one tutor and one student message
                 question_answer=request.question_answer
             )
 
@@ -207,6 +207,9 @@ async def chatter_endpoint(request: ChatRequest):
         response = await chat_session.chat(request.user_message)
         
         return ChatResponse(response=response)
+    except HTTPException as http_exc:
+        # Propagate anticipated API-level errors without wrapping
+        raise http_exc
     except Exception as e:
         # Clean up the session on error if it exists
         if get_session(request.session_id):
@@ -234,6 +237,10 @@ async def finalizer_endpoint(request: FinalizerRequest):
         
         # Call finalizer agent
         result = await finalizer_agent(student_data, request.conversation_history)
+        
+        # Handle None results
+        if result is None:
+            result = {}
         
         # Parse result if it's JSON string
         if isinstance(result, str):

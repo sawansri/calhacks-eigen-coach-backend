@@ -38,12 +38,29 @@ def get_unique_topics_helper():
         return []
 
 
-async def finalizer_agent(student_data: dict, conversation_history: list):
+def _parse_conversation_string(conversation_str: str) -> str:
+    """Parse conversation from format: [tutor]: 'message' [student]: 'message'
+    
+    Args:
+        conversation_str: String in format [tutor]: 'msg' [student]: 'msg' ...
+        
+    Returns:
+        Formatted conversation text
+    """
+    if isinstance(conversation_str, str):
+        # Replace [tutor]: with "Tutor: " and [student]: with "Student: "
+        formatted = conversation_str.replace("[tutor]: '", "Tutor: ").replace("[student]: '", "\nStudent: ").replace("' ", " ")
+        return formatted
+    return ""
+
+
+async def finalizer_agent(student_data: dict, conversation_history):
     """Analyze student performance and provide skill level scores.
     
     Args:
         student_data: Dictionary with student info (exam_name, student_name, memory)
-        conversation_history: List of conversation exchanges
+        conversation_history: Either a string in format "[tutor]: 'msg' [student]: 'msg' ..." 
+                            or a list of dicts with role/content keys
     
     Returns:
         Score deltas in format {topic: score} for each topic covered
@@ -54,12 +71,18 @@ async def finalizer_agent(student_data: dict, conversation_history: list):
     # Get current skill levels and available topics
     skill_levels = get_skill_levels()
     current_skills = {t: l for t, l in skill_levels}
-    
     topics = get_unique_topics_helper()
     topics_list = ", ".join([t[0] if isinstance(t, tuple) else t for t in topics if not isinstance(topics, str)]) if topics and not isinstance(topics, str) else "general"
     
     # Build context strings
-    conversation_text = "\n".join([f"{m.get('role', 'unknown')}: {m.get('content', '')}" for m in conversation_history])
+    # Handle both string format and list format for conversation history
+    if isinstance(conversation_history, str):
+        conversation_text = _parse_conversation_string(conversation_history)
+    elif isinstance(conversation_history, list):
+        conversation_text = "\n".join([f"{m.get('role', 'unknown')}: {m.get('content', '')}" for m in conversation_history])
+    else:
+        conversation_text = str(conversation_history)
+    
     skills_context = "\n".join([f"- {t}: {l}" for t, l in current_skills.items()]) or "- No prior skills"
     memory_context = "\n".join(f"- {item}" for item in student_data.get("memory", [])) or "- No prior context"
     
@@ -75,9 +98,12 @@ Student Background: {memory_context}
 Session Conversation:
 {conversation_text}
 
-Return ONLY valid JSON with topic names as keys and scores (0-100) as values. Example: {{"algebra": 45, "geometry": 75}}"""
+Return ONLY valid JSON with topic names as keys and scores (0-100) as values. Example: {{"algebra": 45, "geometry": 75}}
+ONLY return topics that are relevant to the conversation above!
+"""
 
     options = ClaudeAgentOptions(
+        model="haiku",
         system_prompt="""You are a performance evaluator. Analyze conversation and estimate student scores (0-100 scale: 0-25=novice, 26-50=beginner, 51-75=intermediate, 76-100=advanced). Return ONLY valid JSON with format: {"topic": score, ...}. No other text.""",
         permission_mode='acceptEdits',
         mcp_servers={
@@ -88,7 +114,7 @@ Return ONLY valid JSON with topic names as keys and scores (0-100) as values. Ex
     result_text = ""
     try:
         async with ClaudeSDKClient(options=options) as client:
-            await client.query(prompt=prompt)
+            await client.query(prompt=prompt)   
 
             async for message in client.receive_response():
                 if isinstance(message, AssistantMessage):
@@ -97,22 +123,35 @@ Return ONLY valid JSON with topic names as keys and scores (0-100) as values. Ex
                             result_text += block.text
     except Exception as e:
         print(f"Error in finalizer query: {e}")
-        return {"general": 50}
 
     cleaned_text = result_text.strip()
+    print(f"Finalizer cleaned text: {cleaned_text}")
+    
+    # Strip markdown code blocks if present
+    if cleaned_text.startswith("```"):
+        # Remove opening ```json or ``` and closing ```
+        cleaned_text = cleaned_text.split("```")[1]
+        # Remove optional json/python/etc language identifier
+        if cleaned_text.startswith("json") or cleaned_text.startswith("python"):
+            cleaned_text = cleaned_text[4:].lstrip()
+        cleaned_text = cleaned_text.strip()
+    
+    print(f"Finalizer cleaned text: {cleaned_text}")
     if not cleaned_text:
-        return {"general": 50}
+        return None
 
     try:
         result = json.loads(cleaned_text)
-    except json.JSONDecodeError:
-        print("Finalizer returned invalid JSON, falling back to default score")
-        return {"general": 50}
+    except json.JSONDecodeError as e:
+        print(f"Finalizer returned invalid JSON: {e}")
+        print(f"Attempted to parse: {cleaned_text}")
+        return None
 
     if not isinstance(result, dict):
         print("Finalizer returned unexpected data type, falling back to default score")
-        return {"general": 50}
+        return None
 
-    for topic, score in result.items():
-        set_skill_level(topic, score)
+    # print(f"Finalizer cleaned text: {cleaned_text}")
+    # for topic, score in result.items():
+    #     set_skill_level(topic, score)
     return result
