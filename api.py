@@ -14,6 +14,7 @@ import json
 from agents.initializer import initializer_agent
 from agents.questioner import question_agent
 from agents.chatter import TutorChat
+from agents.chat_manager import get_session, create_session, end_session
 from agents.finalizer import finalizer_agent
 
 # Database
@@ -63,9 +64,10 @@ class QuestionerResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     """Request for tutoring chat."""
+    session_id: str
     user_message: str
-    question_answer: str
-    conversation_history: List[Dict] = []
+    # question_answer is only required for the first message in a session
+    question_answer: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
@@ -173,25 +175,42 @@ async def questioner_endpoint(request: QuestionerRequest):
 @app.post("/chatter", response_model=ChatResponse)
 async def chatter_endpoint(request: ChatRequest):
     """
-    Send a message to the tutoring chatbot.
+    Send a message to the tutoring chatbot using a session ID.
     
     Args:
-        request: ChatRequest with student data and user message
+        request: ChatRequest with session_id and user_message.
+                 question_answer is required to start a new session.
         
     Returns:
-        ChatResponse with tutor response
+        ChatResponse with tutor response.
     """
     try:
-        student_data = get_student_data_from_db()
-        question_answer = request.question_answer
-        conversation_history = request.conversation_history
-        
-        # Create or get chat session
-        chat = TutorChat(student_data, question_answer, conversation_history)
-        response = await chat.chat(request.user_message)
+        # 1. Get the chat session
+        chat_session = get_session(request.session_id)
+
+        # 2. If no session exists, create a new one
+        if not chat_session:
+            if not request.question_answer:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="'question_answer' is required to start a new chat session."
+                )
+            
+            student_data = get_student_data_from_db()
+            chat_session = create_session(
+                session_id=request.session_id,
+                student_data=student_data,
+                question_answer=request.question_answer
+            )
+
+        # 3. Process the chat message
+        response = await chat_session.chat(request.user_message)
         
         return ChatResponse(response=response)
     except Exception as e:
+        # Clean up the session on error if it exists
+        if get_session(request.session_id):
+            await end_session(request.session_id)
         raise HTTPException(status_code=500, detail=f"Chatter error: {str(e)}")
 
 
