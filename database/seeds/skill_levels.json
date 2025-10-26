@@ -1,14 +1,62 @@
 [
   {
-    "topic": "algebra",
-    "skill_level": 45
+    "topic": "biology",
+    "skill_level": 25
   },
   {
-    "topic": "geometry",
-    "skill_level": 60
+    "topic": "photosynthesis",
+    "skill_level": 25
   },
   {
-    "topic": "calculus",
-    "skill_level": 35
+    "topic": "plant_physiology",
+    "skill_level": 25
+  },
+  {
+    "topic": "homeostasis",
+    "skill_level": 25
+  },
+  {
+    "topic": "cell_signaling",
+    "skill_level": 25
+  },
+  {
+    "topic": "chemistry",
+    "skill_level": 25
+  },
+  {
+    "topic": "molecular_geometry",
+    "skill_level": 25
+  },
+  {
+    "topic": "chemical_bonding",
+    "skill_level": 25
+  },
+  {
+    "topic": "acid_base",
+    "skill_level": 25
+  },
+  {
+    "topic": "stoichiometry",
+    "skill_level": 25
+  },
+  {
+    "topic": "physics",
+    "skill_level": 25
+  },
+  {
+    "topic": "thermodynamics",
+    "skill_level": 25
+  },
+  {
+    "topic": "energy",
+    "skill_level": 25
+  },
+  {
+    "topic": "mechanics",
+    "skill_level": 25
+  },
+  {
+    "topic": "kinematics",
+    "skill_level": 25
   }
 ]

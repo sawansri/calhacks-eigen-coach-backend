@@ -8,14 +8,14 @@ import httpx
 
 PAYLOAD = {
     "session_id": "demo-session",
-    "user_message": "[tutor]: 'what is the sum of the angles in a triangle?' [student]: 'The sum of angles in a triangle is 270 degrees'",
+    "user_message": "[tutor]: 'what is the sum of the angles in a triangle?' [student]: '200?'",
     "question_answer": "180 degrees",
 }
 
 PAYLOAD_2 = {
-    "session_id": "demo-session2",
-    "user_message": "[student]: 'Okay can you explain a bit more about it?'",
-    "question_answer": "180 degrees",
+   "session_id": "demo-session",
+   "user_message": "[student]: 'Okay, before that, can you tell me what is the formula in the image?'",
+   "contains_image": "true"
 }
 
 
@@ -28,10 +28,10 @@ async def main() -> None:
         response.raise_for_status()
         timestamp = datetime.now().strftime("%H:%M:%S")
         print(f"[{timestamp}] response -> {response.json()}", flush=True)
-    
+        
         response2 = await client.post(
-            "http://localhost:8000/chatter",
-            json=PAYLOAD_2,
+          "http://localhost:8000/chatter",
+           json=PAYLOAD_2,
         )
         response2.raise_for_status()
         timestamp = datetime.now().strftime("%H:%M:%S")

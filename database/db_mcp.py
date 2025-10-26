@@ -178,6 +178,7 @@ async def get_topics_by_date(args: dict[str, Any]) -> dict[str, Any]:
 )
 async def add_memory_entry(args: dict[str, Any]) -> dict[str, Any]:
     """Add memory entry for a student."""
+    print("add_memory_entry called with args:", args)
     memory_entry = args.get("memory_entry", "")
     
     try:

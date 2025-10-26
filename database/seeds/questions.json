@@ -1,32 +1,56 @@
 [
   {
-    "question_prompt": "Solve for x: 2x + 5 = 17.",
-    "answer": "x = 6",
-    "explanation": "Subtract 5 from both sides to get 2x = 12, then divide by 2.",
-    "difficulty": "easy",
-    "topic_tag1": "algebra",
-    "topic_tag2": "linear_equations",
-    "topic_tag3": null,
-    "has_been_asked": false
-  },
-  {
-    "question_prompt": "What is the derivative of f(x) = 3x^2?",
-    "answer": "f'(x) = 6x",
-    "explanation": "Apply the power rule: bring down the exponent and subtract one from it.",
+    "question_prompt": "Explain the primary role of the enzyme Rubisco in the Calvin cycle.",
+    "answer": "Rubisco (Ribulose-1,5-bisphosphate carboxylase/oxygenase) catalyzes the fixation of carbon dioxide to Ribulose-1,5-bisphosphate (RuBP), initiating the Calvin cycle.",
+    "explanation": "This step, known as **carbon fixation**, is the key entry point of atmospheric carbon into the biological system. The resulting unstable 6-carbon compound immediately splits into two 3-carbon molecules (3-phosphoglycerate).",
     "difficulty": "medium",
-    "topic_tag1": "calculus",
-    "topic_tag2": "derivatives",
-    "topic_tag3": null,
-    "has_been_asked": false
+    "topic_tag1": "biology",
+    "topic_tag2": "photosynthesis",
+    "topic_tag3": "plant_physiology"
   },
   {
-    "question_prompt": "If a right triangle has legs of lengths 3 and 4, what is the hypotenuse?",
-    "answer": "5",
-    "explanation": "Use the Pythagorean theorem: sqrt(3^2 + 4^2) = 5.",
-    "difficulty": "easy",
-    "topic_tag1": "geometry",
-    "topic_tag2": "pythagorean_theorem",
-    "topic_tag3": null,
-    "has_been_asked": false
+    "question_prompt": "Describe the difference between positive and negative feedback loops in biological systems, and provide one example of a negative feedback loop.",
+    "answer": "Positive feedback amplifies a stimulus or moves a system further from a set point, while negative feedback counteracts a change to return the system to a set point (maintaining **homeostasis**). An example of a negative feedback loop is the regulation of blood glucose by insulin and glucagon.",
+    "explanation": "Negative feedback is far more common in regulatory biology. Another common example is the control of body temperature; if it drops, mechanisms (like shivering) are triggered to raise it back up.",
+    "difficulty": "medium",
+    "topic_tag1": "biology",
+    "topic_tag2": "homeostasis",
+    "topic_tag3": "cell_signaling"
+  },
+  {
+    "question_prompt": "Define the term 'hybridization' in the context of covalent bonding, and state the hybridization of the carbon atom in a methane (CH4) molecule.",
+    "answer": "**Hybridization** is the concept of mixing atomic orbitals (like s and p) to form new, equivalent hybrid orbitals suitable for the pairing of electrons to form chemical bonds. The carbon atom in CH4 is **sp3** hybridized.",
+    "explanation": "sp3 hybridization involves one s and three p orbitals combining to form four identical sp3 hybrid orbitals, which point towards the corners of a tetrahedron, explaining methane's geometry.",
+    "difficulty": "medium",
+    "topic_tag1": "chemistry",
+    "topic_tag2": "molecular_geometry",
+    "topic_tag3": "chemical_bonding"
+  },
+  {
+    "question_prompt": "Calculate the pH of a 0.010 M solution of HCl.",
+    "answer": "The pH is 2.0.",
+    "explanation": "HCl is a strong acid, meaning it com  letely dissociates in water, so the concentration of hydrogen ions ([H+]) equals the concentration of HCl, which is 0.010 M. The pH is then calculated as pH = -log10[H+] = -log10(0.010), which equals 2.0.",
+    "difficulty": "medium",
+    "topic_tag1": "chemistry",
+    "topic_tag2": "acid_base",
+    "topic_tag3": "stoichiometry"
+  },
+  {
+    "question_prompt": "State the First Law of Thermodynamics and explain what it implies about energy in a closed system.",
+    "answer": "The First Law of Thermodynamics is the law of **conservation of energy**, stating that energy cannot be created or destroyed, only transferred or changed in form. It implies that the change in a closed system's internal energy (Delta U) equals the heat added to the system (Q) minus the work done by the system (W). This is often written as the equation: Delta U = Q - W.",
+    "explanation": "This law is often called the *work-heat* principle. For an isolated system (no heat or work exchange), the change in internal energy (Delta U) must be zero.",
+    "difficulty": "medium",
+    "topic_tag1": "physics",
+    "topic_tag2": "thermodynamics",
+    "topic_tag3": "energy"
+  },
+  {
+    "question_prompt": "A car accelerates uniformly from rest to 20.0 m/s in 5.0 s. Calculate the magnitude of its acceleration.",
+    "answer": "The magnitude of the acceleration is 4.0 m per second squared (m/s^2).",
+    "explanation": "Use the kinematic equation final velocity = initial velocity + (acceleration * time). Since the car starts from rest, acceleration = final velocity / time. Thus, acceleration = 20.0 m/s / 5.0 s = 4.0 m/s^2.",
+    "difficulty": "medium",
+    "topic_tag1": "physics",
+    "topic_tag2": "mechanics",
+    "topic_tag3": "kinematics"
   }
 ]

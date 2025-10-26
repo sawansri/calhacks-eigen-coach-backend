@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any, Dict, List
 
 from claude_agent_sdk import (
@@ -15,10 +16,9 @@ from claude_agent_sdk import (
 from database.db_helpers import get_calendar_entry, get_questions_by_topic, get_skill_levels
 
 
-async def question_agent(current_date: str) -> List[Dict[str, Any]]:
+async def question_agent(current_date) -> List[Dict[str, Any]]:
     """Select questions tailored to the student's scheduled topics and skill levels."""
-    print(f"Starting question selection for date: {current_date}")
-
+    print(f"Running question_agent for date: {current_date}")
     calendar_entry = get_calendar_entry(current_date)
     print(f"Calendar entry for {current_date}: {calendar_entry}")
     topics: List[str] = calendar_entry.get("topics", []) if calendar_entry else []
@@ -59,7 +59,7 @@ async def question_agent(current_date: str) -> List[Dict[str, Any]]:
     payload = {
         "scheduled_topics": topics,
         "skill_levels": skill_levels,
-        "questions_by_topic": questions_by_topic,
+        "total number of questions": questions_by_topic,
     }
 
     options = ClaudeAgentOptions(
@@ -75,9 +75,9 @@ async def question_agent(current_date: str) -> List[Dict[str, Any]]:
         "Given the scheduled topics, student skill levels, and candidate questions, "
         "select at most one question per topic. Choose questions that best match the student's "
         "skill level (lower skill levels should receive easier questions)."
-        "you should deprioritize questions that have been asked before, and prefer those that have not been asked yet."
         "If a question does not have a solution or answer, come up with your own solution or answer, and fill your response."
-        "you can create new questions if most existing ones have been asked before. Example is replacing values while keeping format the same."
+        "you SHOULD also create new questions if not enough existing questions are provided for the current topic. Always provide the provided number of questions"
+        "If you are creating your own questions, make sure you fill in all fields, including explanation, answer, difficulty, and has_been_asked (which should be false for newly created questions)."
         "\n\nRules:\n"
         "- Return a JSON array.\n"
         "- Each element must include the keys: question_prompt, topic_tag1, topic_tag2, topic_tag3, answer, explanation, difficulty, has_been_asked, source_topic, selection_reason.\n"

@@ -3,6 +3,7 @@ FastAPI endpoints for the Eigen Coach tutoring system.
 """
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Optional, List, Any, Union
 from datetime import datetime
@@ -25,6 +26,15 @@ app = FastAPI(
     title="Eigen Coach API",
     description="API for the Eigen Coach AI tutoring system",
     version="1.0.0"
+)
+
+# Add CORS middleware for testing
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (for testing)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods (GET, POST, PUT, DELETE, etc.)
+    allow_headers=["*"],  # Allow all headers
 )
 
 # ============================================================================
@@ -67,6 +77,7 @@ class ChatRequest(BaseModel):
     user_message: str
     # question_answer is only required for the first message in a session
     question_answer: Optional[str] = None
+    contains_image: Optional[bool] = False
 
 
 class ChatResponse(BaseModel):
@@ -204,7 +215,7 @@ async def chatter_endpoint(request: ChatRequest):
             )
 
         # 3. Process the chat message
-        response = await chat_session.chat(request.user_message)
+        response = await chat_session.chat(request.user_message, contains_image=request.contains_image)
         
         return ChatResponse(response=response)
     except HTTPException as http_exc:
