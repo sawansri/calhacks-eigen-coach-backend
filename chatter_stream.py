@@ -8,7 +8,7 @@ import httpx
 
 PAYLOAD = {
     "session_id": "demo-session",
-    "user_message": "[tutor]: 'what is the sum of the angles in a triangle?' [student]: '200?'",
+    "user_message": "[tutor]: 'what is the sum of the angles in a triangle?' [student]: wait I cant understand English. I can only speak portuguese. You should remember this about me'",
     "question_answer": "180 degrees",
 }
 

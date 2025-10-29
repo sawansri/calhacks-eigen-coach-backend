@@ -43,14 +43,5 @@
     "topic_tag1": "physics",
     "topic_tag2": "thermodynamics",
     "topic_tag3": "energy"
-  },
-  {
-    "question_prompt": "A car accelerates uniformly from rest to 20.0 m/s in 5.0 s. Calculate the magnitude of its acceleration.",
-    "answer": "The magnitude of the acceleration is 4.0 m per second squared (m/s^2).",
-    "explanation": "Use the kinematic equation final velocity = initial velocity + (acceleration * time). Since the car starts from rest, acceleration = final velocity / time. Thus, acceleration = 20.0 m/s / 5.0 s = 4.0 m/s^2.",
-    "difficulty": "medium",
-    "topic_tag1": "physics",
-    "topic_tag2": "mechanics",
-    "topic_tag3": "kinematics"
   }
 ]
